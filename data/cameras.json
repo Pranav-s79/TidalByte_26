@@ -1,0 +1,96 @@
+{
+  "source": "Houston TranStar",
+  "source_url": "https://traffic.houstontranstar.org/cctv/transtar/",
+  "locations_url": "https://traffic.houstontranstar.org/data/layers/cctvSnapshots_out.js",
+  "checked_on": "2026-11-21",
+  "terms_url": "https://traffic.houstontranstar.org/disclaimer.aspx",
+  "cameras": [
+    {
+      "id": "630",
+      "road": "IH-610 South Loop",
+      "cross_street": "Braeswood",
+      "lat": 29.681866,
+      "lon": -95.458906,
+      "near_lane_direction": "eastbound",
+      "snapshot_url": "https://www.houstontranstar.org/snapshots/cctv/630.jpg",
+      "inside_replay_bbox": true,
+      "candidate_osm_ids": [
+        "103085480,171152236,171152237,45873104,45873105,103085463,28567101",
+        "123126016,45873096,45873099,171152238,171152239,103085462,103085466"
+      ],
+      "visible_osm_ids": [],
+      "dry_baseline": null
+    },
+    {
+      "id": "631",
+      "road": "IH-610 South Loop",
+      "cross_street": "Stella Link",
+      "lat": 29.679672,
+      "lon": -95.440331,
+      "near_lane_direction": "westbound",
+      "snapshot_url": "https://www.houstontranstar.org/snapshots/cctv/631.jpg",
+      "inside_replay_bbox": true,
+      "candidate_osm_ids": [
+        "45871985,143812181,143812175",
+        "143812176,143812177,123126011"
+      ],
+      "visible_osm_ids": [],
+      "dry_baseline": null
+    },
+    {
+      "id": "632",
+      "road": "IH-610 South Loop",
+      "cross_street": "South Main",
+      "lat": 29.677845,
+      "lon": -95.427703,
+      "near_lane_direction": "westbound",
+      "snapshot_url": "https://www.houstontranstar.org/snapshots/cctv/632.jpg",
+      "inside_replay_bbox": true,
+      "candidate_osm_ids": [
+        "45871985",
+        "915465146"
+      ],
+      "visible_osm_ids": [],
+      "dry_baseline": null
+    },
+    {
+      "id": "2701",
+      "road": "US-90A",
+      "cross_street": "W Belfort",
+      "lat": 29.673316,
+      "lon": -95.430828,
+      "near_lane_direction": "northbound",
+      "snapshot_url": "https://www.houstontranstar.org/snapshots/cctv/2701.jpg",
+      "inside_replay_bbox": false,
+      "candidate_osm_ids": [],
+      "visible_osm_ids": [],
+      "dry_baseline": null
+    },
+    {
+      "id": "2702",
+      "road": "US-90A",
+      "cross_street": "Willowbend",
+      "lat": 29.665116,
+      "lon": -95.437329,
+      "near_lane_direction": "northbound",
+      "snapshot_url": "https://www.houstontranstar.org/snapshots/cctv/2702.jpg",
+      "inside_replay_bbox": false,
+      "candidate_osm_ids": [],
+      "visible_osm_ids": [],
+      "dry_baseline": null
+    },
+    {
+      "id": "8029",
+      "road": "Chimney Rock",
+      "cross_street": "N Braeswood",
+      "lat": 29.677913,
+      "lon": -95.476728,
+      "near_lane_direction": null,
+      "snapshot_url": "https://www.houstontranstar.org/snapshots/cctv/8029.jpg",
+      "inside_replay_bbox": false,
+      "candidate_osm_ids": [],
+      "visible_osm_ids": [],
+      "dry_baseline": null
+    }
+  ]
+}

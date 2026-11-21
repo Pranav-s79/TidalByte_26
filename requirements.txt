@@ -2,5 +2,12 @@ numpy
 scipy
 rasterio
 osmnx
+networkx
 requests
+Pillow
 pytest
+torch          # Linux CPU machine (e.g. Brev)? Install the CPU-only wheels first:
+torchvision    #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+scikit-learn
+pyproj
+matplotlib

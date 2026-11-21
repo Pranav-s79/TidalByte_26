@@ -268,6 +268,20 @@ export function renderDetails(sel, ctx) {
       field('Taken', p.taken_at, true),
       field('Reference', p.reference_object),
       field('Obstacles', obstacles.length ? obstacles.map((o) => [o.type, o.note].filter(Boolean).join(': ')).join('; ') : null)));
+    const reference = usgs ? ctx.referenceViews?.[String(p.id)] : null;
+    const referenceImage = reference ? safeUrl(`photos/refs/${reference.file}`) : null;
+    if (reference && referenceImage) {
+      const captured = reference.captured_at < '2017-08-25'
+        ? `${reference.captured_at} · before Harvey`
+        : reference.captured_at;
+      const source = safeUrl(reference.page_url);
+      host.append(h('figure', { class: 'reference-photo' },
+        h('img', { src: referenceImage, loading: 'lazy', alt: `Dry street reference near high-water mark ${p.id}` }),
+        h('figcaption', {},
+          h('strong', {}, `Dry street reference · ${Math.round(reference.distance_m)} m away`),
+          h('span', {}, captured),
+          source ? h('a', { href: source, target: '_blank', rel: 'noopener' }, `${reference.creator || 'Mapillary contributor'} · ${reference.license}`) : null)));
+    }
     if (p.reasoning) host.append(h('div', { class: 'reasoning' }, h('div', { class: 'sec-label', icon: 'sparkles' }, 'AI findings'), h('p', {}, p.reasoning)));
     host.append(h('p', { class: 'caveat', icon: 'info' }, usgs
       ? 'High-water mark: the peak water line, surveyed after the flood. It is not a reading at a single moment.'

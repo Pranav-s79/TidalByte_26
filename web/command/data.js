@@ -96,6 +96,14 @@ export async function loadCameras() {
   }
 }
 
+export async function loadReferenceViews() {
+  try {
+    return await getJson('photos/refs/index.json', { optional: true }) || {};
+  } catch {
+    return {};
+  }
+}
+
 export const reloadPins = () => getJson('data/pins.geojson');
 
 // Pri's review loop (flood/serve.py): POST /review {id, status}. A plain static server answers 501.

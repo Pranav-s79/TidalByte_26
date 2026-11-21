@@ -1,5 +1,5 @@
 // Command center entry: loads the replay layers, builds the 3D scene and wires the panels.
-import { loadCore, loadBuildings, loadContext, loadCameras, loadPhotorealisticData, reloadPins, postReview, pinId } from './data.js';
+import { loadCore, loadBuildings, loadContext, loadCameras, loadPhotorealisticData, loadReferenceViews, reloadPins, postReview, pinId } from './data.js';
 import { createScene } from './scene.js';
 import { createPhotorealisticLayer } from './photorealistic.js';
 import * as ui from './ui.js';
@@ -44,6 +44,7 @@ function select(info, { fly = false, focus = false } = {}) {
 function ctx(focus = false) {
   return {
     meta: state.data.meta,
+    referenceViews: state.data.referenceViews,
     focus,
     flyTo: (sel, opts) => scene.flyToFeature(sel, opts),
     overview: () => scene.flyOverview(),
@@ -192,7 +193,9 @@ async function setMapMode(mode, { announce = true } = {}) {
     ui.setStatus('ok', 'Replay data loaded');
   }
   renderLists();
-  ui.renderCameras(await loadCameras(), (cam) => {
+  const [cameras, referenceViews] = await Promise.all([loadCameras(), loadReferenceViews()]);
+  state.data.referenceViews = referenceViews;
+  ui.renderCameras(cameras, (cam) => {
     scene.flyToPoint(cam.lon, cam.lat, { range: 320, pitch: -24 });
     ui.toast(`Camera: ${cam.name}`, 'info', 2500);
   });

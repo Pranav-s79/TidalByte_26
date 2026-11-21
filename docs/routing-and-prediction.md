@@ -1,6 +1,6 @@
 # Routing and prediction
 
-Nov 21, 2026 · status: **planned**. Router and prediction are not built yet. The replay pipeline they build on is built (`flood/fill.py`, `flood/roads.py`, `flood/run.py`).
+Nov 21, 2026 · status: **built** (1:43 PM): `flood/predict.py` and `flood/route.py` (Pri), with replay routes in `web/data/routes.json`; the route presenter `flood/present_routes.py` (Sujit, §6). The replay pipeline they build on is `flood/fill.py`, `flood/roads.py`, `flood/run.py`.
 
 This is the single source for how routing works and what it may say. Every other doc links here instead of restating it.
 
@@ -40,6 +40,10 @@ This is the single source for how routing works and what it may say. Every other
   - At least 4 readings in the last 90 minutes are needed to predict. Fewer than that: use the latest reading as Observed if it is under 20 minutes old, otherwise Unknown.
   - Never predict more than 60 minutes ahead.
 - This is the same Gaussian-process math as spatial interpolation, with time in place of distance. It smooths noisy frame-by-frame readings, and its uncertainty widens on its own as you look further ahead.
+
+> **As built (2:10 PM).** `predict.py` follows this section and adds a weighted linear trend under the Gaussian process, because the zero-mean process alone pulled a rising series back toward its average. `flood/depth_model.py` (Sujit) builds on it: `hotspots()` clusters cameras whose planning depth is over 0.30 m **right now** (DBSCAN, 1.5 km), which is not `CLAUDE.md`'s recurring hotspot across events, and `plot_camera()` draws the slide.
+>
+> Two behaviours to know: the trend extends in a straight line (15 minutes of rising readings project to about 1.1 m at 60 minutes with about ±6 cm of sigma (synthetic series)), and inside the 90-minute window sigma does not grow between far-apart readings, because the time scale can reach 120 min.
 
 ### 2. From cameras to nearby roads (`flood/fill.py`, `flood/roads.py`, already built)
 
@@ -82,6 +86,8 @@ The alert shows the old and new numbers plus fresh options. Only the dispatcher 
 1. Nemotron Lightning calls the tool `route_options(start, end, vehicle_type)`.
 2. It writes at most three sentences comparing the options, quoting only numbers from the tool output.
 3. A test checks that every number matches the tool output and that none of the banned words from rule 1 appear.
+
+**As built (`flood/present_routes.py`):** Lightning receives the router's output rather than calling `route_options` itself (tool calling is a stretch). A reply is shown only if every number in it appears in the router output, it has no banned word and it is at most three sentences. One retry with the problems listed, then a template built from the same numbers. Output: `web/data/route_summary.json`.
 
 ## Tests that pin the math
 

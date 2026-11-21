@@ -228,6 +228,7 @@ If history is not verified or functioning, omit that step from the live demo rat
 - Do not invent labels, ground truth, confidence scores, or test results. Separate model-generated confidence labels from empirically calibrated accuracy.
 - Avoid publishing faces, license plates, precise home details, or sensitive personal media; redact/blur as appropriate and minimize retention.
 - Verify actual Nemotron model availability, vision/video/reasoning behavior, access terms, and track eligibility from current official docs. Do not assume a single model can do every stage in one API call.
+- **Verified Nov 21 (Lane B):** `nvidia/nemotron-3.5-super-vl-120b-a12b` on NVIDIA Build reads images sent as OpenAI-style `image_url` parts (4 images in one request worked). It reasons before answering, so it needs a large `max_tokens` (8192) and takes 17–67 s per photo, and the same photo can give different readings on different runs. A pretrained PyTorch detector and a scikit-learn per-camera Gaussian process support it; neither is trained on our data. `nvidia/nemotron-3.5-lightning-30b-a3b` writes the route comparison in 12–20 s and passed the number check on the replay routes.
 
 ### Official reference starting points (verify when used)
 
@@ -276,7 +277,7 @@ A judge can watch an authorized camera clip being processed, inspect a source-li
 
 ## 12. Decisions still open
 
-- Event's official model, API, and Adobe track requirements.
+- Adobe track requirements. (Model: the event kit allows any Nemotron model; we use Super VL on NVIDIA Build, verified working.)
 - Team size, available hardware, internet reliability, and event duration.
 - Confirmed usable footage with trustworthy location/timestamp metadata and permission.
 - ~~Geographic focus for first event replay~~ **Decided:** Meyerland (Brays Bayou), Houston, Hurricane Harvey 2017 replay from 10 USGS high-water marks.
