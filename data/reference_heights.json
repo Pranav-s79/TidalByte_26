@@ -1,26 +1,38 @@
 [
   {
     "name": "passenger car or small SUV tire, top of tire",
-    "height_m_low": 0.60,
+    "height_m_low": 0.6,
     "height_m_high": 0.72,
     "source": "Computed from tire size markings: overall diameter = rim + 2 x width x aspect ratio. 185/60R15 = 0.603 m, 195/65R15 = 0.635 m, 225/65R17 = 0.724 m. Check: https://tirewheelguide.com/calculator/195-65-15/"
   },
   {
     "name": "passenger car or small SUV wheel, center of hub",
-    "height_m_low": 0.30,
+    "height_m_low": 0.3,
     "height_m_high": 0.36,
     "source": "Half the tire diameters above (the hub sits at the wheel's center)."
   },
   {
     "name": "street curb, top of curb face",
-    "height_m_low": 0.10,
+    "height_m_low": 0.1,
     "height_m_high": 0.15,
     "source": "Iowa DOT Design Manual 3C-2: 4 in sloped, 6 in sloped and 6 in standard curbs. https://iowadot.gov/design-manual/chapter-3-cross-sections/3c-2-curbs . Houston curbs not yet checked."
+  },
+  {
+    "name": "standing adult, ankle bone",
+    "height_m_low": 0.05,
+    "height_m_high": 0.08,
+    "source": "ANSUR II public data, lateral malleolus height, barefoot: 5th percentile women 54 mm to 95th percentile men 83 mm (1,986 women, 4,082 men). Computed by us from https://www.openlab.psu.edu/ansur2/ . Shoes add a few cm."
   },
   {
     "name": "standing adult, middle of kneecap",
     "height_m_low": 0.41,
     "height_m_high": 0.54,
     "source": "ANSUR II public data, knee height (midpatella), barefoot: 5th percentile women 408 mm to 95th percentile men 536 mm (1,986 women, 4,082 men). Computed by us from https://www.openlab.psu.edu/ansur2/ . Shoes add a few cm."
+  },
+  {
+    "name": "standing adult, waist at the navel",
+    "height_m_low": 0.9,
+    "height_m_high": 1.14,
+    "source": "ANSUR II public data, waist height (omphalion), barefoot: 5th percentile women 900 mm to 95th percentile men 1,144 mm (1,986 women, 4,082 men). Computed by us from https://www.openlab.psu.edu/ansur2/ . Shoes add a few cm."
   }
 ]
