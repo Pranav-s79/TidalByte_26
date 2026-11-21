@@ -8,9 +8,10 @@ import { pinTier, roadTier } from './scene.js';
 const C = (css, alpha = 1) => Cesium.Color.fromCssColorString(css).withAlpha(alpha);
 const FALLBACK_OFFSET_M = -27;
 const ROAD_COLORS = {
-  likely: '#0891b2', possible: '#f59e0b', bridge: '#f59e0b', none: '#64748b', unknown: '#64748b',
+  likely: '#06b6d4', possible: '#f59e0b', bridge: '#f59e0b',
 };
 const PIN_COLORS = { observed: '#06b6d4', critical: '#e11d48', uncertain: '#f59e0b', confirmed: '#06b6d4', rejected: '#64748b' };
+const ALIGNMENT_TIMEOUT_MS = 3000;
 
 function hierarchy(rings) {
   const ring = (points) => Cesium.Cartesian3.fromDegreesArray(points.slice(0, -1).flat());
@@ -50,7 +51,13 @@ export async function createPhotorealisticLayer(viewer, data, token) {
   Cesium.Ion.defaultAccessToken = token;
   const tiles = await Cesium.createGooglePhotorealistic3DTileset();
   viewer.scene.primitives.add(tiles);
-  const alignment = await alignToLidar(viewer, data.samples);
+  const alignment = await Promise.race([
+    alignToLidar(viewer, data.samples),
+    new Promise((resolve) => window.setTimeout(() => resolve({
+      offset: FALLBACK_OFFSET_M,
+      how: 'approximate: lidar alignment timed out',
+    }), ALIGNMENT_TIMEOUT_MS)),
+  ]);
   const { offset } = alignment;
   const groups = { water: [], roads: [], evidence: [], unknown: [] };
 
@@ -71,11 +78,11 @@ export async function createPhotorealisticLayer(viewer, data, token) {
       id: { kind: 'water', props: feature.properties, feature },
     }));
     const material = possible
-      ? Cesium.Material.fromType('Color', { color: C('#f59e0b', 0.28) })
+      ? Cesium.Material.fromType('Color', { color: C('#f59e0b', 0.2) })
       : new Cesium.Material({ fabric: { type: 'Water', uniforms: {
-        baseWaterColor: C('#0e7490', 0.72), blendColor: C('#38bdf8', 0.55),
+        baseWaterColor: C('#036b87', 0.48), blendColor: C('#38bdf8', 0.34),
         normalMap: Cesium.buildModuleUrl('Assets/Textures/waterNormals.jpg'),
-        frequency: 1800, animationSpeed: 0.006, amplitude: 2.5, specularIntensity: 0.45,
+        frequency: 2200, animationSpeed: 0.004, amplitude: 1.7, specularIntensity: 0.35,
       } } });
     const primitive = viewer.scene.primitives.add(new Cesium.Primitive({
       geometryInstances: instances,
@@ -88,16 +95,17 @@ export async function createPhotorealisticLayer(viewer, data, token) {
   for (const feature of data.roads.features) {
     const properties = feature.properties;
     const tier = roadTier(properties);
-    const dashed = tier === 'possible' || tier === 'bridge' || tier === 'unknown';
+    if (tier === 'none' || tier === 'unknown') continue;
+    const dashed = tier === 'possible' || tier === 'bridge';
     const info = { kind: 'road', props: properties, feature, tier };
     const entity = viewer.entities.add({
       polyline: {
         positions: Cesium.Cartesian3.fromDegreesArray(feature.geometry.coordinates.flat()),
         clampToGround: true,
-        width: tier === 'likely' ? 4 : 2.5,
+        width: tier === 'likely' ? 2.6 : 2,
         material: dashed
-          ? new Cesium.PolylineDashMaterialProperty({ color: C(ROAD_COLORS[tier], tier === 'unknown' ? 0.55 : 0.9), dashLength: tier === 'bridge' ? 8 : 16 })
-          : C(ROAD_COLORS[tier], tier === 'none' ? 0.55 : 0.88),
+          ? new Cesium.PolylineDashMaterialProperty({ color: C(ROAD_COLORS[tier], 0.88), dashLength: tier === 'bridge' ? 8 : 16 })
+          : C(ROAD_COLORS[tier], 0.78),
       },
     });
     entity.cc = info;
@@ -110,8 +118,8 @@ export async function createPhotorealisticLayer(viewer, data, token) {
         polyline: {
           positions: Cesium.Cartesian3.fromDegreesArray(ring.flat()),
           clampToGround: true,
-          width: 3,
-          material: new Cesium.PolylineDashMaterialProperty({ color: C('#f8fafc', 0.82), dashLength: 20 }),
+          width: 2,
+          material: new Cesium.PolylineDashMaterialProperty({ color: C('#f8fafc', 0.58), dashLength: 20 }),
         },
       });
       entity.cc = { kind: 'unknown', props: feature.properties };
@@ -138,12 +146,12 @@ export async function createPhotorealisticLayer(viewer, data, token) {
     });
     const marker = viewer.entities.add({
       position: Cesium.Cartesian3.fromDegrees(lon, lat, topHeight),
-      point: { pixelSize: 11, color, outlineColor: C('#ffffff'), outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      point: { pixelSize: 9, color, outlineColor: C('#ffffff'), outlineWidth: 1.5, disableDepthTestDistance: Number.POSITIVE_INFINITY },
       label: {
         text: depth === null ? 'Depth unknown' : `${depth.toFixed(2)} m`,
-        font: '600 14px Segoe UI, sans-serif', fillColor: C('#ffffff'),
-        showBackground: true, backgroundColor: C('#0f172a', 0.88), backgroundPadding: new Cesium.Cartesian2(8, 5),
-        pixelOffset: new Cesium.Cartesian2(0, -19), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2800),
+        font: '600 13px Segoe UI, sans-serif', fillColor: C('#ffffff'),
+        showBackground: true, backgroundColor: C('#07111f', 0.82), backgroundPadding: new Cesium.Cartesian2(7, 4),
+        pixelOffset: new Cesium.Cartesian2(0, -17), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1800),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });

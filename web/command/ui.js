@@ -72,24 +72,27 @@ export function setupMapMode({ available, onChange, onError }) {
     photo.disabled = true;
     photo.title = 'Add CESIUM_ION_TOKEN to web/config.local.js to enable this mode';
   }
-  for (const button of buttons) {
-    button.addEventListener('click', async () => {
-      if (button.disabled || button.getAttribute('aria-pressed') === 'true') return;
-      buttons.forEach((b) => { b.disabled = true; });
-      button.dataset.loading = 'true';
-      try {
-        await onChange(button.dataset.mapMode);
-        buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
-      } catch (error) {
-        onError?.(error);
-      } finally {
-        delete button.dataset.loading;
-        buttons.forEach((b) => {
-          b.disabled = b.dataset.mapMode === 'photorealistic' && !available;
-        });
-      }
-    });
-  }
+  const activate = async (mode, options) => {
+    const button = buttons.find((candidate) => candidate.dataset.mapMode === mode);
+    if (!button || button.disabled || button.getAttribute('aria-pressed') === 'true') return false;
+    buttons.forEach((candidate) => { candidate.disabled = true; });
+    button.dataset.loading = 'true';
+    try {
+      await onChange(mode, options);
+      buttons.forEach((candidate) => candidate.setAttribute('aria-pressed', String(candidate === button)));
+      return true;
+    } catch (error) {
+      onError?.(error);
+      return false;
+    } finally {
+      delete button.dataset.loading;
+      buttons.forEach((candidate) => {
+        candidate.disabled = candidate.dataset.mapMode === 'photorealistic' && !available;
+      });
+    }
+  };
+  for (const button of buttons) button.addEventListener('click', () => activate(button.dataset.mapMode));
+  return { activate };
 }
 
 // ---------------------------------------------------------------- left panel
@@ -108,29 +111,30 @@ export function renderStats({ meta, pins, roads }) {
   const tile = (cls, ic, value, label, sub) => h('div', { class: `stat ${cls}` },
     h('div', { class: 'stat-top', icon: ic }, h('span', { class: 'stat-label' }, label)),
     h('div', { class: 'stat-value' }, value), sub ? h('div', { class: 'stat-sub' }, sub) : null);
-  host.append(
+  const tiles = [
     tile('t-cyan', 'gauge', marks, 'Measured marks', 'USGS · observed'),
-    tile('t-amber', 'sparkles', ai.length, 'AI readings', `${awaiting} awaiting review`),
     tile('t-red', 'route', likely, 'Roads likely flooded', `${critical} over ${CRITICAL_DEPTH_M} m est.`),
     tile('t-slate', 'info', unknown, 'Roads unknown', 'no mark within 400 m'),
-  );
-  $('#stats-note').textContent = meta
-    ? `${meta.n_confirmed_photos} confirmed photo${meta.n_confirmed_photos === 1 ? '' : 's'} in the water layer · radius ${meta.radius_m} m`
-    : 'Layer summary unavailable (meta.json did not load).';
+  ];
+  if (ai.length) tiles.splice(1, 0, tile('t-amber', 'sparkles', ai.length, 'AI readings', `${awaiting} awaiting review`));
+  host.append(...tiles);
+  const note = $('#stats-note');
+  note.textContent = meta?.n_confirmed_photos
+    ? `${meta.n_confirmed_photos} confirmed photo${meta.n_confirmed_photos === 1 ? '' : 's'} · ${meta.radius_m} m evidence radius`
+    : '';
+  note.hidden = !note.textContent;
 }
 
 export function renderCameras(result, onSelect) {
   const host = $('#cameras');
+  const section = host.closest('.sec');
   host.replaceChildren();
   $('#cam-count').textContent = result.cameras.length ? String(result.cameras.length) : '0';
   if (!result.cameras.length) {
-    host.append(h('div', { class: 'empty', icon: 'video' },
-      h('div', { class: 'empty-title' }, result.error ? 'Camera catalog unreadable' : 'No camera feeds connected'),
-      h('div', { class: 'empty-text' }, result.error
-        ? result.error
-        : 'Live TranStar cameras are planned. This replay uses USGS high-water marks instead.')));
+    section.hidden = true;
     return;
   }
+  section.hidden = false;
   for (const cam of result.cameras) {
     const src = safeUrl(cam.snapshot);
     host.append(h('button', { class: 'cam', type: 'button', onclick: () => onSelect(cam) },
@@ -226,7 +230,8 @@ export function renderDetails(sel, ctx) {
       h('div', { class: 'empty-text' }, 'Click a gauge, a road or a flooded area to see its evidence, depth range and confidence.'),
       h('ul', { class: 'hint-list' },
         h('li', {}, h('kbd', {}, 'Click'), ' gauge or road for evidence'),
-        h('li', {}, h('kbd', {}, 'Drag'), ' to rotate · two-finger scroll to zoom'),
+        h('li', {}, h('kbd', {}, 'Drag'), ' or two-finger left/right to rotate'),
+        h('li', {}, 'Two-finger up/down to zoom'),
         h('li', {}, h('kbd', {}, 'Ctrl'), '+drag to tilt · ', h('kbd', {}, 'Esc'), ' to deselect'))));
     return;
   }

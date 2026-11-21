@@ -149,11 +149,11 @@ async function refreshPins() {
   if (added || old.size !== fresh.features.length) renderLists();
 }
 
-async function setMapMode(mode) {
+async function setMapMode(mode, { announce = true } = {}) {
   if (mode === 'operational') {
     scene.setMode('operational');
     ui.setStatus('ok', 'Operational map');
-    ui.toast('Operational map enabled.', 'info', 2200);
+    if (announce) ui.toast('Analysis view enabled.', 'info', 2200);
     scene.flyOverview({ duration: 1.8 });
     return;
   }
@@ -173,7 +173,7 @@ async function setMapMode(mode) {
   }
   scene.setMode('photorealistic', photorealisticLayer);
   ui.setStatus('ok', 'Photorealistic city loaded');
-  ui.toast(`Photorealistic mode: ${photorealisticLayer.alignment.how}.`, 'info', 5200);
+  if (announce) ui.toast('Photorealistic view enabled.', 'info', 2200);
   scene.flyOverview({ duration: 2.2 });
 }
 
@@ -191,7 +191,6 @@ async function setMapMode(mode) {
     ui.loaderStep('data', 'done', `${core.pins.features.length} marks · ${core.roads.features.length} roads`);
     ui.setStatus('ok', 'Replay data loaded');
   }
-  ui.setBuilt(core.meta);
   renderLists();
   ui.renderCameras(await loadCameras(), (cam) => {
     scene.flyToPoint(cam.lon, cam.lat, { range: 320, pitch: -24 });
@@ -220,7 +219,11 @@ async function setMapMode(mode) {
     console.error('[command] buildings', e);
   }
 
-  ui.setupMapMode({
+  (core.pins ? core.pins.features : []).forEach((feature, index) => {
+    scene.addPin(feature, { delay: 900 + index * 140, pulse: true });
+  });
+
+  const mapModes = ui.setupMapMode({
     available: Boolean(window.CESIUM_ION_TOKEN),
     onChange: setMapMode,
     onError: (error) => {
@@ -230,8 +233,10 @@ async function setMapMode(mode) {
     },
   });
 
+  const startedPhotorealistic = window.CESIUM_ION_TOKEN
+    ? await mapModes.activate('photorealistic', { announce: false })
+    : false;
   ui.hideLoader();
-  scene.flyOverview({ duration: 3.2 });
-  (core.pins ? core.pins.features : []).forEach((f, i) => scene.addPin(f, { delay: 900 + i * 140, pulse: true }));
+  if (!startedPhotorealistic) scene.flyOverview({ duration: 3.2 });
   setInterval(refreshPins, 30000);
 })();

@@ -84,6 +84,37 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   scene.screenSpaceCameraController.inertiaSpin = 0.7;
   scene.screenSpaceCameraController.inertiaZoom = 0.75;
 
+  // Cesium maps vertical wheel movement to zoom, but ignores the horizontal wheel
+  // deltas emitted by a two-finger trackpad gesture. Use that otherwise-unused axis
+  // to orbit the camera. Shift + vertical scroll is an accessible fallback for mice.
+  const canvas = viewer.canvas;
+  canvas.addEventListener('wheel', (event) => {
+    const horizontalGesture = Math.abs(event.deltaX) > Math.max(1, Math.abs(event.deltaY) * 0.45);
+    if (!horizontalGesture && !event.shiftKey) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const delta = horizontalGesture ? event.deltaX : event.deltaY;
+    const angle = Cesium.Math.clamp(delta * 0.0004, -0.12, 0.12);
+    const center = new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2);
+    const target = viewer.camera.pickEllipsoid(center, Cesium.Ellipsoid.WGS84);
+    if (!target) return;
+    const frame = Cesium.Transforms.eastNorthUpToFixedFrame(target);
+    const inverse = Cesium.Matrix4.inverseTransformation(frame, new Cesium.Matrix4());
+    const offset = Cesium.Matrix4.multiplyByPoint(inverse, viewer.camera.positionWC, new Cesium.Cartesian3());
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const rotated = new Cesium.Cartesian3(
+      offset.x * cos - offset.y * sin,
+      offset.x * sin + offset.y * cos,
+      offset.z,
+    );
+    viewer.camera.lookAt(target, rotated);
+    viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+  }, { capture: true, passive: false });
+  canvas.addEventListener('pointerdown', () => document.body.classList.add('map-dragging'));
+  window.addEventListener('pointerup', () => document.body.classList.remove('map-dragging'));
+  window.addEventListener('pointercancel', () => document.body.classList.remove('map-dragging'));
+
   // Soft key light from the south-west so building faces read in 3D.
   const enu = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(...CENTER));
   const local = Cesium.Cartesian3.normalize(new Cesium.Cartesian3(0.5, 0.6, -0.62), new Cesium.Cartesian3());
@@ -108,6 +139,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   let selectEnt = null;
   let mode = 'operational';
   let photorealisticLayer = null;
+  document.body.dataset.mapMode = mode;
 
   // ---------------------------------------------------------------- ground plate (context)
   // A slightly lifted navy plate over the replay box with a faint 100 m survey grid, plus OSM water
@@ -346,8 +378,10 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     layers.evidence.push(...ents.map((entity) => ({ entity })));
 
     setTimeout(() => {
-      tween(700, (k) => { grow = k; }, () => { label.show = subLabel.show = layerOn.evidence; });
-      if (pulse) pulseRing(lon, lat, color);
+      tween(700, (k) => { grow = k; }, () => {
+        label.show = subLabel.show = mode === 'operational' && layerOn.evidence;
+      });
+      if (pulse && mode === 'operational') pulseRing(lon, lat, color);
     }, reduceMotion() ? 0 : delay);
   }
 
@@ -460,6 +494,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     if (next === 'photorealistic' && !layer) throw new Error('Photorealistic layer is not ready');
     photorealisticLayer = layer;
     mode = next;
+    document.body.dataset.mapMode = mode;
     const operational = mode === 'operational';
     scene.globe.show = operational;
     applyOperationalLayer('context', operational);

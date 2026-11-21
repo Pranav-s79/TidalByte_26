@@ -9,35 +9,33 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Widgets/widgets.css">
   <link rel="stylesheet" href="command/command.css">
 </head>
-<body class="cc right-collapsed">
+<body class="cc left-collapsed right-collapsed timeline-collapsed">
   <a class="skip-link" href="#left">Skip map and open operations</a>
   <div id="cesium" role="region" aria-label="Interactive 3D flood map of Meyerland, Houston" aria-describedby="map-help"></div>
-  <p id="map-help" class="sr-only">Use the Operations list to select measured evidence without operating the map. On the map, click and drag to rotate, use two-finger scrolling to zoom, and hold Control while dragging to tilt. Map controls also provide overview, street-level and top-down views.</p>
+  <p id="map-help" class="sr-only">Use the Operations list to select measured evidence without operating the map. Drag or move two fingers left and right to rotate. Move two fingers up and down to zoom. Hold Control while dragging to tilt.</p>
   <div class="vignette" aria-hidden="true"></div>
 
   <!-- ============ top bar ============ -->
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark" data-icon="logo"></span>
-      <div class="brand-text"><div class="brand-name">River Gauge</div><div class="brand-sub">Flood intelligence</div></div>
+      <div class="brand-text"><div class="brand-name">River Gauge</div></div>
     </div>
     <div class="tb-sep" aria-hidden="true"></div>
     <div class="tb-item tb-location">
       <span class="tb-label">Location</span>
-      <span class="tb-value"><span data-icon="pin"></span>Meyerland · Brays Bayou, Houston TX</span>
+      <span class="tb-value"><span data-icon="pin"></span>Meyerland · Houston</span>
     </div>
     <div class="tb-item">
-      <span class="tb-label">Event</span>
-      <span class="replay-chip">REPLAY · Hurricane Harvey, Aug 2017</span>
+      <span class="replay-chip">HARVEY 2017 · REPLAY</span>
     </div>
     <div class="mode-switch" role="group" aria-label="Map appearance">
-      <button type="button" data-map-mode="operational" aria-pressed="true">Operational</button>
+      <button type="button" data-map-mode="operational" aria-pressed="true">Analysis</button>
       <button type="button" data-map-mode="photorealistic" aria-pressed="false">Photorealistic</button>
     </div>
     <div class="tb-spacer"></div>
     <div class="status" id="sys-status" data-kind="loading" role="status"><span class="dot" aria-hidden="true"></span><span class="st-text">Loading data</span></div>
-    <div class="status subtle tb-built" id="sys-built" hidden><span data-icon="activity"></span><span class="st-text"></span></div>
-    <a class="tb-link" href="index.html" aria-label="2D map"><span data-icon="map"></span><span>2D map</span></a>
+    <a class="tb-link" href="index.html" aria-label="Open 2D map" title="Open 2D map"><span data-icon="map"></span></a>
   </header>
 
   <!-- ============ left: operations ============ -->
@@ -83,14 +81,14 @@
   <!-- ============ map zone: everything that floats over the map between the panels ============ -->
   <div class="zone">
     <nav class="layer-dock" id="layer-dock" aria-label="Map layers">
-      <button class="chip" type="button" data-layer="buildings"><span data-icon="building"></span>Buildings</button>
-      <button class="chip" type="button" data-layer="water"><span class="sw sw-water" aria-hidden="true"></span>Water estimate</button>
-      <button class="chip" type="button" data-layer="roads"><span class="sw sw-road" aria-hidden="true"></span>Roads</button>
-      <button class="chip" type="button" data-layer="evidence"><span class="sw sw-pin" aria-hidden="true"></span>Evidence</button>
+      <button class="chip" type="button" data-layer="buildings" aria-label="3D city"><span data-icon="building"></span><span class="chip-label chip-label-secondary">3D city</span></button>
+      <button class="chip" type="button" data-layer="water"><span class="sw sw-water" aria-hidden="true"></span><span class="chip-label">Flood extent</span></button>
+      <button class="chip" type="button" data-layer="roads"><span class="sw sw-road" aria-hidden="true"></span><span class="chip-label">Road impact</span></button>
+      <button class="chip" type="button" data-layer="evidence"><span class="sw sw-pin" aria-hidden="true"></span><span class="chip-label">Evidence</span></button>
       <button class="chip locked" type="button" data-layer="unknown" data-locked="1" aria-disabled="true"
-        title="Always shown: areas with no data are never hidden"><span class="sw sw-unknown" aria-hidden="true"></span>Unknown<span data-icon="lock"></span></button>
+        aria-label="Coverage: areas without evidence are always shown" title="Areas without evidence remain visible"><span class="sw sw-unknown" aria-hidden="true"></span><span class="chip-label chip-label-secondary">Coverage</span><span data-icon="lock"></span></button>
       <span class="dock-sep" aria-hidden="true"></span>
-      <button class="chip" type="button" id="key-btn" aria-expanded="false" aria-controls="legend"><span data-icon="key"></span>Key</button>
+      <button class="chip" type="button" id="key-btn" aria-label="Open map key" title="Map key" aria-expanded="false" aria-controls="legend"><span data-icon="key"></span><span class="chip-label chip-label-secondary">Key</span></button>
     </nav>
 
     <div class="legend" id="legend" hidden>
@@ -126,6 +124,10 @@
       <button class="icon-btn lg" type="button" id="cam-street" aria-label="Street-level view" title="Street-level view"><span data-icon="street"></span></button>
       <button class="icon-btn lg" type="button" id="cam-top" aria-label="Top-down view" title="Top-down view"><span data-icon="map"></span></button>
       <button class="icon-btn lg" type="button" id="cam-north" aria-label="Reset north" title="Reset north"><span data-icon="compass"></span></button>
+    </div>
+
+    <div class="map-gesture-hint" id="map-gesture-hint" aria-hidden="true">
+      <span>Two-finger ↔ rotate</span><i></i><span>↕ zoom</span>
     </div>
 
     <footer class="timeline" id="timeline" aria-label="Analysis replay">
