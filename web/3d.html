@@ -3,57 +3,164 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flood Scene Realistic</title>
+  <title>Flood Command · Meyerland</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 15c2.4-1.9 4.6-1.9 7 0s4.6 1.9 7 0 3.4-1.5 4-1'/%3E%3Cpath d='M12 3v9M9.5 5.5h5M10.5 8.5h3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/';</script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Widgets/widgets.css">
-  <link rel="stylesheet" href="style.css">
-  <style>
-    #cesium { position: absolute; inset: 0; }
-    #banner a { color: #93c5fd; }
-    .ln.edge { border-top-style: dashed; border-color: #f9fafb; }
-    .sw.water { background: linear-gradient(135deg, #1e3a5f, #3b82c4 60%, #9cc9f0); }
-    .sw.possible-3d { background: rgba(147, 197, 253, .55); }
-    .gauge { display: inline-block; width: 6px; height: 16px; background: linear-gradient(#facc15 50%, #111827 50%) 0 0 / 6px 6px; flex: none; margin: 0 8px 0 4px; }
-    #status { color: var(--muted); font-size: 12px; margin-top: 6px; }
-  </style>
+  <link rel="stylesheet" href="command/command.css">
 </head>
-<body>
-  <div id="cesium" role="region" aria-label="Realistic 3D view of estimated Harvey flooding in Meyerland"></div>
+<body class="cc">
+  <div id="cesium" role="application" aria-label="3D map of estimated Hurricane Harvey flooding in Meyerland, Houston"></div>
+  <div class="vignette" aria-hidden="true"></div>
 
-  <header id="banner">
-    <span class="replay">REPLAY · Hurricane Harvey, Aug 2017</span>
-    <span id="label">Loading…</span>
-    <a href="index.html">2D map</a>
+  <!-- ============ top bar ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" data-icon="logo"></span>
+      <div class="brand-text"><div class="brand-name">River Gauge</div><div class="brand-sub">Flood intelligence</div></div>
+    </div>
+    <div class="tb-sep" aria-hidden="true"></div>
+    <div class="tb-item tb-location">
+      <span class="tb-label">Location</span>
+      <span class="tb-value"><span data-icon="pin"></span>Meyerland · Brays Bayou, Houston TX</span>
+    </div>
+    <div class="tb-item">
+      <span class="tb-label">Event</span>
+      <span class="replay-chip">REPLAY · Hurricane Harvey, Aug 2017</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="status" id="sys-status" data-kind="loading" role="status"><span class="dot" aria-hidden="true"></span><span class="st-text">Loading data</span></div>
+    <div class="status subtle tb-built" id="sys-built" hidden><span data-icon="activity"></span><span class="st-text"></span></div>
+    <a class="tb-link" href="index.html" aria-label="2D map"><span data-icon="map"></span><span>2D map</span></a>
   </header>
 
-  <aside id="legend" aria-label="Legend and layers">
-    <fieldset class="toggles">
-      <legend>Show</legend>
-      <label><input type="checkbox" data-group="water" checked> Water</label>
-      <label><input type="checkbox" data-group="roads" checked> Roads</label>
-      <label><input type="checkbox" data-group="gauges" checked> Gauges</label>
-    </fieldset>
-    <div class="controls"><button id="replay-fly" type="button">Fly to deepest gauge</button></div>
-    <h2>Water (estimated)</h2>
-    <div class="row"><i class="sw water"></i><span>Likely flooded: water drawn at its estimated peak level</span></div>
-    <div class="row"><i class="sw possible-3d"></i><span>Possibly flooded</span></div>
-    <div class="row"><i class="ln edge"></i><span>Edge of evidence. Beyond it: Unknown: no data</span></div>
-    <h2>Roads</h2>
-    <div class="row"><i class="ln likely"></i><span>Likely flooded</span></div>
-    <div class="row"><i class="ln bridge"></i><span>Bridge: depth not estimated</span></div>
-    <h2>Evidence</h2>
-    <div class="row"><i class="gauge"></i><span>USGS measured (surveyed after the flood). Bar height = water depth</span></div>
-    <p class="note">3D city: Google Photorealistic 3D Tiles, showing Houston <b>today</b>, not 2017. Click a gauge for details. Left-drag to pan, right-drag to zoom, Ctrl+drag to tilt.</p>
-    <p id="status">Aligning 3D city to lidar…</p>
+  <!-- ============ left: operations ============ -->
+  <aside class="panel panel-left" id="left" aria-label="Operations">
+    <div class="panel-head">
+      <div class="ph-title"><span data-icon="activity"></span>Operations</div>
+      <button class="icon-btn" type="button" data-collapse="left" aria-expanded="true" aria-label="Collapse operations panel"><span data-icon="left"></span></button>
+    </div>
+    <div class="panel-body">
+      <section class="sec" aria-labelledby="sec-detect">
+        <div class="sec-head"><h3 class="sec-label" id="sec-detect">Flood detection</h3></div>
+        <div class="stats" id="stats"></div>
+        <p class="sec-note" id="stats-note"></p>
+      </section>
+      <section class="sec" aria-labelledby="sec-cams">
+        <div class="sec-head"><h3 class="sec-label" id="sec-cams">Camera feeds</h3><span class="count" id="cam-count">0</span></div>
+        <div class="cams" id="cameras"></div>
+      </section>
+      <section class="sec sec-grow" aria-labelledby="sec-obs">
+        <div class="sec-head"><h3 class="sec-label" id="sec-obs">Observations</h3><span class="count" id="obs-count">0</span></div>
+        <div class="obs-list" id="observations"></div>
+      </section>
+    </div>
   </aside>
+  <button class="panel-tab tab-left" type="button" data-collapse="left" aria-expanded="true" aria-label="Open operations panel"><span data-icon="right"></span><span>Operations</span></button>
 
-  <aside id="panel" hidden aria-live="polite">
-    <button id="close" type="button" aria-label="Close details">×</button>
-    <div id="panel-body"></div>
+  <!-- ============ right: incident ============ -->
+  <aside class="panel panel-right" id="right" aria-label="Incident details">
+    <div class="panel-head">
+      <div class="ph-title"><span data-icon="alert"></span>Incident</div>
+      <button class="icon-btn" type="button" data-collapse="right" aria-expanded="true" aria-label="Collapse incident panel"><span data-icon="right"></span></button>
+    </div>
+    <div class="panel-body">
+      <div id="details" aria-live="polite"></div>
+      <section class="sec" id="closures-sec" hidden aria-labelledby="sec-closures">
+        <div class="sec-head"><h3 class="sec-label" id="sec-closures">Hypothetical closures</h3></div>
+        <div id="closures"></div>
+      </section>
+    </div>
   </aside>
+  <button class="panel-tab tab-right" type="button" data-collapse="right" aria-expanded="true" aria-label="Open incident panel"><span data-icon="left"></span><span>Incident</span></button>
 
+  <!-- ============ map zone: everything that floats over the map between the panels ============ -->
+  <div class="zone">
+    <nav class="layer-dock" id="layer-dock" aria-label="Map layers">
+      <button class="chip" type="button" data-layer="buildings"><span data-icon="building"></span>Buildings</button>
+      <button class="chip" type="button" data-layer="water"><span class="sw sw-water" aria-hidden="true"></span>Water estimate</button>
+      <button class="chip" type="button" data-layer="roads"><span class="sw sw-road" aria-hidden="true"></span>Roads</button>
+      <button class="chip" type="button" data-layer="evidence"><span class="sw sw-pin" aria-hidden="true"></span>Evidence</button>
+      <button class="chip locked" type="button" data-layer="unknown" data-locked="1" aria-disabled="true"
+        title="Always shown: areas with no data are never hidden"><span class="sw sw-unknown" aria-hidden="true"></span>Unknown<span data-icon="lock"></span></button>
+      <span class="dock-sep" aria-hidden="true"></span>
+      <button class="chip" type="button" id="key-btn" aria-expanded="false" aria-controls="legend"><span data-icon="key"></span>Key</button>
+    </nav>
+
+    <div class="legend" id="legend" hidden>
+      <div class="lg-group">
+        <h4>Water (estimated peak)</h4>
+        <div class="lg-row"><span class="lg-ramp"><i></i><i></i><i></i><i></i></span><span>Likely flooded<small>0–0.3 · 0.3–0.6 · 0.6–1.2 · over 1.2 m</small></span></div>
+        <div class="lg-row"><span class="lg-fill lg-possible"></span><span>Possibly flooded</span></div>
+        <div class="lg-row"><span class="lg-fill lg-unknown"></span><span>Unknown: no data</span></div>
+      </div>
+      <div class="lg-group">
+        <h4>Roads</h4>
+        <div class="lg-row"><span class="lg-line lg-likely"></span><span>Likely flooded</span></div>
+        <div class="lg-row"><span class="lg-line lg-possible"></span><span>Possibly flooded</span></div>
+        <div class="lg-row"><span class="lg-line lg-none"></span><span>No flooding estimated (not verified)</span></div>
+        <div class="lg-row"><span class="lg-line lg-unk"></span><span>Unknown: no data</span></div>
+        <div class="lg-row"><span class="lg-line lg-bridge"></span><span>Bridge: depth not estimated</span></div>
+        <div class="lg-row"><span class="lg-line lg-closed"></span><span>Closed (hypothetical what-if)</span></div>
+      </div>
+      <div class="lg-group">
+        <h4>Evidence</h4>
+        <div class="lg-row"><span class="lg-disc"></span><span>USGS measured (surveyed after the flood)</span></div>
+        <div class="lg-row"><span class="lg-disc lg-red"></span><span>USGS measured · over 1.2 m</span></div>
+        <div class="lg-row"><span class="lg-diamond"></span><span>AI-proposed: awaiting review</span></div>
+        <div class="lg-row"><span class="lg-dot"></span><span>Peak water height on the marker pole</span></div>
+      </div>
+      <p class="lg-note">Building heights approximate (OpenStreetMap; most default to 6 m). Not an all-clear anywhere.</p>
+    </div>
+
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <div class="cam-ctrl" role="group" aria-label="Camera">
+      <button class="icon-btn lg" type="button" id="cam-overview" aria-label="City overview" title="City overview"><span data-icon="overview"></span></button>
+      <button class="icon-btn lg" type="button" id="cam-street" aria-label="Street-level view" title="Street-level view"><span data-icon="street"></span></button>
+      <button class="icon-btn lg" type="button" id="cam-top" aria-label="Top-down view" title="Top-down view"><span data-icon="map"></span></button>
+      <button class="icon-btn lg" type="button" id="cam-north" aria-label="Reset north" title="Reset north"><span data-icon="compass"></span></button>
+    </div>
+
+    <footer class="timeline" id="timeline" aria-label="Analysis replay">
+      <button class="play" type="button" id="tl-play" aria-label="Play analysis replay"><span data-icon="play"></span></button>
+      <div class="tl-main">
+        <div class="tl-head">
+          <h3 class="sec-label">Analysis replay</h3>
+          <span class="tl-meta">Peak only · high-water marks record the highest water, not a time series</span>
+        </div>
+        <div class="tl-track">
+          <div class="tl-rail"><div class="tl-progress" id="tl-progress"></div></div>
+          <div class="tl-steps" id="tl-steps"></div>
+        </div>
+        <div class="tl-caption" id="tl-caption" aria-live="polite"></div>
+      </div>
+      <button class="icon-btn" type="button" data-collapse="timeline" aria-expanded="true" aria-label="Collapse timeline"><span data-icon="down"></span></button>
+    </footer>
+    <button class="panel-tab tab-timeline" type="button" data-collapse="timeline" aria-expanded="true" aria-label="Open analysis replay"><span data-icon="play"></span><span>Analysis replay</span></button>
+
+    <div class="credits" id="credits"></div>
+  </div>
+
+  <!-- ============ loading state ============ -->
+  <div class="loader" id="loader" role="status" aria-live="polite">
+    <div class="loader-card">
+      <div class="loader-brand"><span class="brand-mark" data-icon="logo"></span>River Gauge</div>
+      <div class="loader-title">Preparing the scene</div>
+      <ul class="ld-steps">
+        <li data-step="data" data-state="pending"><span class="ld-ic" aria-hidden="true"></span><span class="ld-name">Replay data</span><span class="ld-detail"></span></li>
+        <li data-step="layers" data-state="pending"><span class="ld-ic" aria-hidden="true"></span><span class="ld-name">Flood layers</span><span class="ld-detail"></span></li>
+        <li data-step="city" data-state="pending"><span class="ld-ic" aria-hidden="true"></span><span class="ld-name">City model</span><span class="ld-detail"></span></li>
+      </ul>
+      <div class="loader-foot">REPLAY · Hurricane Harvey, Aug 2017</div>
+    </div>
+  </div>
+
+  <noscript><p class="noscript">The command center needs JavaScript and WebGL.</p></noscript>
   <script src="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Cesium.js"></script>
-  <script src="config.local.js"></script>
-  <script src="scene3d.js"></script>
+  <script type="module" src="command/main.js"></script>
 </body>
 </html>
