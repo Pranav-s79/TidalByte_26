@@ -1,0 +1,6 @@
+numpy
+scipy
+rasterio
+osmnx
+requests
+pytest

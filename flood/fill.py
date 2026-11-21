@@ -1,0 +1,4 @@
+UNKNOWN = -1
+DRY = 0
+POSSIBLE = 1
+LIKELY = 2
