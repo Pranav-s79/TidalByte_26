@@ -4,6 +4,7 @@ __pycache__/
 .superpowers/
 .serena/
 data/raw/
+data/frames/
 .env
 cache/
 web/config.local.js
