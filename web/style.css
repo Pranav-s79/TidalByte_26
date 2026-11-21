@@ -33,11 +33,11 @@ html, body { margin: 0; height: 100%; background: #111827; font: 13px/1.4 system
 .sw.possible { width: 22px; background: repeating-linear-gradient(45deg, #2563a8 0 2px, #cfe0f2 2px 5px); }
 .sw.unknown { width: 22px; background: radial-gradient(#374151 1px, #9aa1ab 1.5px) 0 0 / 5px 5px; }
 .ln { display: inline-block; width: 22px; height: 0; border-top: 3px solid; flex: none; }
-.ln.likely { border-color: var(--road-likely); }
+.ln.likely { border-color: var(--road-likely); box-shadow: 0 0 0 1.5px #fff; }
 .ln.possible { border-top-style: dashed; border-color: var(--road-possible); }
 .ln.none { border-top-width: 2px; border-color: var(--road-none); }
 .ln.unk { border-top-style: dotted; border-color: #9ca3af; }
-.ln.bridge { border-top-style: dashed; border-color: var(--bridge); }
+.ln.bridge { border-top: 3px dotted #f59e0b; box-shadow: 0 0 0 1px rgba(17,24,39,.9); background: rgba(17,24,39,.9); }
 .pin { display: inline-block; width: 13px; height: 13px; border-radius: 50%; flex: none; }
 .pin.usgs { background: #111827; border: 2px solid #fff; }
 .pin.ai { background: #fff; border: 3px solid #7c3aed; }
@@ -55,7 +55,31 @@ html, body { margin: 0; height: 100%; background: #111827; font: 13px/1.4 system
 #close { position: absolute; top: 8px; right: 8px; background: none; border: 0; color: var(--panel-fg); font-size: 20px; cursor: pointer; line-height: 1; }
 #close:focus-visible { outline: 2px solid #fde68a; }
 
+/* ---------- legend: collapsible, toggles, gauge controls ---------- */
+#legend summary { cursor: pointer; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--panel-fg); }
+#legend details[open] summary { margin-bottom: 6px; }
+.toggles { border: 0; padding: 0; margin: 0 0 8px; display: flex; gap: 10px; flex-wrap: wrap; }
+.toggles legend { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.toggles label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.controls { display: grid; grid-template-columns: 1fr; gap: 4px; margin-bottom: 6px; }
+.controls label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+#legend { overflow-x: hidden; }
+.controls select { width: 100%; min-width: 0; }
+.controls select, .controls button {
+  font: inherit; color: var(--panel-fg); background: #1f2937; border: 1px solid #4b5563; border-radius: 6px; padding: 4px 6px;
+}
+.controls button { cursor: pointer; justify-self: start; }
+.controls button:hover, .controls select:hover { border-color: #9ca3af; }
+
+/* Visible keyboard focus everywhere (yellow reads on dark panels and the light map). */
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible,
+#panel h3:focus-visible, .maplibregl-canvas:focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; }
+#panel h3:focus { outline: none; }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
 @media (max-width: 640px) {
-  #legend { width: auto; right: 12px; max-height: 38%; }
-  #panel { top: auto; bottom: 12px; }
+  #banner { left: 12px; right: 56px; transform: none; max-width: none; justify-content: flex-start; font-size: 12px; }
+  #legend { width: auto; right: 12px; max-height: 45%; bottom: 12px; }
+  #panel { top: auto; bottom: 12px; left: 12px; right: 12px; width: auto; max-height: 55%; overflow: auto; z-index: 3; }
 }
