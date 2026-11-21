@@ -5,7 +5,7 @@ import { BANDS, CRITICAL_DEPTH_M, isUsgs, pinId } from './data.js';
 
 const C = (css, a = 1) => Cesium.Color.fromCssColorString(css).withAlpha(a);
 const CENTER = [-95.4425, 29.686];
-const STALK_M = 42;          // marker stalk height (a pointer, not a depth)
+const STALK_M = 20;          // marker stalk height (a pointer, not a depth)
 const ROAD_H = 0.5;          // draw roads just above the ground plane
 
 export const COLORS = {
@@ -80,10 +80,9 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   scene.light = new Cesium.DirectionalLight({ direction: Cesium.Cartesian3.normalize(dir, dir), intensity: 2.4,
     color: C('#d6e4ff') });
 
-  // Subtle bloom: only the bright flood and evidence colours glow against the dark city.
+  // Keep status colours crisp. Bloom makes dense road networks harder to distinguish.
   const bloom = scene.postProcessStages.bloom;
-  bloom.enabled = true;
-  Object.assign(bloom.uniforms, { glowOnly: false, contrast: 90, brightness: -0.52, delta: 1.0, sigma: 2.2, stepSize: 0.7 });
+  bloom.enabled = false;
 
   // No third-party basemap tiles: the "basemap" is our own dark ground plate drawn from OSM vectors
   // (addContext), so nothing needs an API key and the look stays consistent.
@@ -239,7 +238,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     none: { width: 2, alpha: 0.75, mat: () => Cesium.Material.fromType('Color', { color: C('#7c8aa0', 0.75) }) },
     possible: { width: 3, alpha: 0.95, mat: () => Cesium.Material.fromType('PolylineDash', { color: C(COLORS.amber, 0.95), gapColor: Cesium.Color.TRANSPARENT, dashLength: 16 }) },
     bridge: { width: 3.4, alpha: 0.95, mat: () => Cesium.Material.fromType('PolylineDash', { color: C(COLORS.amber, 0.95), gapColor: C('#0a1220', 0.85), dashLength: 7 }) },
-    likely: { width: 5, alpha: 0.85, mat: () => Cesium.Material.fromType('PolylineGlow', { color: C(COLORS.cyan, 0.85), glowPower: 0.3, taperPower: 1 }) },
+    likely: { width: 3.5, alpha: 0.9, mat: () => Cesium.Material.fromType('Color', { color: C(COLORS.cyan, 0.9) }) },
   };
   function addRoads(fc) {
     const groups = {};
@@ -279,7 +278,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     const base = Cesium.Cartesian3.fromDegrees(lon, lat, 0.2);
     // Neighbouring markers get taller poles so their labels stack instead of overlapping.
     const near = [...pins.values()].filter((g) => Cesium.Cartesian3.distance(g.base, base) < 200).length;
-    const stalkM = STALK_M + 26 * near;
+    const stalkM = STALK_M + 10 * near;
     const top = (k) => Cesium.Cartesian3.fromDegrees(lon, lat, 0.2 + stalkM * k);
 
     const ring = viewer.entities.add({
@@ -288,8 +287,8 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
         outline: true, outlineColor: color.withAlpha(0.95), outlineWidth: 2 },
     });
     const stalk = viewer.entities.add({
-      polyline: { positions: new Cesium.CallbackProperty(() => [base, top(grow)], false), width: 3,
-        material: new Cesium.PolylineGlowMaterialProperty({ color: color.withAlpha(0.95), glowPower: 0.3, taperPower: 1 }),
+      polyline: { positions: new Cesium.CallbackProperty(() => [base, top(grow)], false), width: 2,
+        material: color.withAlpha(0.9),
         arcType: Cesium.ArcType.NONE },
     });
     // The real peak water height on the pole, so the marker can be read against the houses.
@@ -305,6 +304,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
         showBackground: true, backgroundColor: C('#060c18', 0.86), backgroundPadding: new Cesium.Cartesian2(9, 6),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -22),
         scaleByDistance: LABEL_SCALE, pixelOffsetScaleByDistance: LABEL_SCALE,
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2800),
         disableDepthTestDistance: Number.POSITIVE_INFINITY },
     });
     const subLabel = viewer.entities.add({

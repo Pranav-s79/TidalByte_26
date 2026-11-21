@@ -29,7 +29,10 @@ scene.intro();
 function select(info, { fly = false, focus = false } = {}) {
   state.selected = info;
   scene.select(info);
-  if (info) document.body.classList.remove('right-collapsed');
+  if (info) {
+    ui.setCollapsed('right', false);
+    if (window.matchMedia('(max-width: 900px)').matches) ui.setCollapsed('left', true);
+  }
   ui.renderDetails(info, ctx(focus));
   ui.markObservation(info && info.kind === 'pin' ? info.id : null);
   if (info && fly) scene.flyToFeature(info, info.kind === 'pin' ? { range: 260, pitch: -22 } : undefined);
@@ -105,6 +108,9 @@ function play() {
   tick();
 }
 
+if (window.matchMedia('(max-width: 900px)').matches) {
+  document.body.classList.add('left-collapsed', 'right-collapsed', 'timeline-collapsed');
+}
 ui.setupCollapse();
 ui.setupLayerDock(scene.layerState(), (name, on) => { stopPlay(); setLayer(name, on); });
 ui.setupTimeline(STEPS, { onStep: (i) => { stopPlay(); applyStep(i); }, onPlay: play });
@@ -114,8 +120,6 @@ document.getElementById('cam-overview').addEventListener('click', () => scene.fl
 document.getElementById('cam-street').addEventListener('click', () => (state.selected ? scene.flyToFeature(state.selected, { range: 180, pitch: -14 }) : scene.streetLevel()));
 document.getElementById('cam-top').addEventListener('click', () => scene.topDown());
 document.getElementById('cam-north').addEventListener('click', () => scene.resetNorth());
-if (window.matchMedia('(max-width: 900px)').matches) document.body.classList.add('left-collapsed', 'right-collapsed');
-
 // ---------------------------------------------------------------- observations
 function renderLists() {
   ui.renderStats(state.data);

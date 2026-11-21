@@ -340,7 +340,8 @@ export function syncLayer(name, on) {
 export function setupTimeline(steps, { onStep, onPlay }) {
   const host = $('#tl-steps');
   host.replaceChildren();
-  steps.forEach((s, i) => host.append(h('button', { class: 'tl-step', type: 'button', 'data-i': i, onclick: () => onStep(i) },
+  steps.forEach((s, i) => host.append(h('button', { class: 'tl-step', type: 'button', 'data-i': i,
+    'aria-label': `${i + 1} of ${steps.length}: ${s.name}. ${s.desc}`, onclick: () => onStep(i) },
     h('span', { class: 'tl-dot', 'aria-hidden': 'true' }), h('span', { class: 'tl-name' }, s.name), h('span', { class: 'tl-desc' }, s.desc))));
   $('#tl-play').addEventListener('click', onPlay);
 }
@@ -358,12 +359,32 @@ export function setPlaying(on) {
 }
 
 // ---------------------------------------------------------------- collapsible panels
+export function setCollapsed(id, collapsed, { focus = false } = {}) {
+  document.body.classList.toggle(`${id}-collapsed`, collapsed);
+  document.querySelectorAll(`[data-collapse="${id}"]`).forEach((b) => b.setAttribute('aria-expanded', String(!collapsed)));
+  const panel = document.getElementById(id);
+  if (panel) {
+    panel.setAttribute('aria-hidden', String(collapsed));
+    panel.toggleAttribute('inert', collapsed);
+  }
+  if (!focus) return;
+  const target = collapsed
+    ? document.querySelector(`.panel-tab[data-collapse="${id}"]`)
+    : panel?.querySelector('.panel-head button');
+  target?.focus({ preventScroll: true });
+}
+
 export function setupCollapse() {
+  for (const id of ['left', 'right', 'timeline']) setCollapsed(id, document.body.classList.contains(`${id}-collapsed`));
   for (const btn of document.querySelectorAll('[data-collapse]')) {
     btn.addEventListener('click', () => {
       const id = btn.dataset.collapse;
-      const collapsed = document.body.classList.toggle(`${id}-collapsed`);
-      document.querySelectorAll(`[data-collapse="${id}"]`).forEach((b) => b.setAttribute('aria-expanded', String(!collapsed)));
+      const collapsed = !document.body.classList.contains(`${id}-collapsed`);
+      if (!collapsed && window.matchMedia('(max-width: 900px)').matches) {
+        if (id === 'left') setCollapsed('right', true);
+        if (id === 'right') setCollapsed('left', true);
+      }
+      setCollapsed(id, collapsed, { focus: id !== 'timeline' });
     });
   }
 }

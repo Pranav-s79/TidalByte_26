@@ -5,15 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flood Command · Meyerland</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 15c2.4-1.9 4.6-1.9 7 0s4.6 1.9 7 0 3.4-1.5 4-1'/%3E%3Cpath d='M12 3v9M9.5 5.5h5M10.5 8.5h3'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/';</script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Widgets/widgets.css">
   <link rel="stylesheet" href="command/command.css">
 </head>
-<body class="cc">
-  <div id="cesium" role="application" aria-label="3D map of estimated Hurricane Harvey flooding in Meyerland, Houston"></div>
+<body class="cc right-collapsed">
+  <a class="skip-link" href="#left">Skip map and open operations</a>
+  <div id="cesium" role="region" aria-label="Interactive 3D flood map of Meyerland, Houston" aria-describedby="map-help"></div>
+  <p id="map-help" class="sr-only">Use the Operations list to select measured evidence without operating the map. Map controls provide overview, street-level and top-down views.</p>
   <div class="vignette" aria-hidden="true"></div>
 
   <!-- ============ top bar ============ -->
@@ -38,7 +37,7 @@
   </header>
 
   <!-- ============ left: operations ============ -->
-  <aside class="panel panel-left" id="left" aria-label="Operations">
+  <aside class="panel panel-left" id="left" aria-label="Operations" tabindex="-1">
     <div class="panel-head">
       <div class="ph-title"><span data-icon="activity"></span>Operations</div>
       <button class="icon-btn" type="button" data-collapse="left" aria-expanded="true" aria-label="Collapse operations panel"><span data-icon="left"></span></button>
@@ -62,7 +61,7 @@
   <button class="panel-tab tab-left" type="button" data-collapse="left" aria-expanded="true" aria-label="Open operations panel"><span data-icon="right"></span><span>Operations</span></button>
 
   <!-- ============ right: incident ============ -->
-  <aside class="panel panel-right" id="right" aria-label="Incident details">
+  <aside class="panel panel-right" id="right" aria-label="Incident details" tabindex="-1">
     <div class="panel-head">
       <div class="ph-title"><span data-icon="alert"></span>Incident</div>
       <button class="icon-btn" type="button" data-collapse="right" aria-expanded="true" aria-label="Collapse incident panel"><span data-icon="right"></span></button>
