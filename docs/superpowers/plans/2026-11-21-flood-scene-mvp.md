@@ -8,7 +8,7 @@
 
 **Architecture:** Python scripts read input files from `data/` and write GeoJSON files to `web/data/`. A static MapLibre page reads those files. The four lanes connect **only through files** in the formats fixed in the spec, so everyone can build at the same time against small sample files.
 
-**Tech Stack:** Python 3.11+, numpy, scipy, rasterio, osmnx, requests, pytest. Plain HTML/JS with MapLibre GL JS 4.7.1 and OpenFreeMap tiles. Nemotron VL on NVIDIA Build.
+**Tech Stack:** Python 3.11+, numpy, scipy, rasterio, osmnx, requests, pytest. Plain HTML/JS with MapLibre GL JS 4.7.1 and OpenFreeMap tiles. Nemotron VL on NVIDIA Build. Added after the MVP (Lane B): torch, torchvision and pillow (PyTorch detector); scikit-learn, pyproj and matplotlib (camera depth model).
 
 **Spec:** `docs/superpowers/specs/2026-11-21-flood-scene-mvp-design.md`. Read the "Data contracts" and "Wording rules" sections before starting.
 
@@ -166,6 +166,8 @@ def test_statuses():
 ---
 
 ### Task B1: Nemotron photo reader (Lane B)
+
+**Status: done (1:07 PM).** Follow-up is in `docs/tasks/2026-11-21-polish.md` (Sujit 1, 4, 6, 7): Super VL reasons before answering, so real calls need `max_tokens` 8192; the reference heights are sourced; a PyTorch detector cross-checks each reading.
 
 **Files:**
 - Create: `flood/read_photo.py`, `tests/test_read_photo.py`, `data/reference_heights.json`
