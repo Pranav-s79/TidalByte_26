@@ -717,6 +717,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
 
   return {
     viewer, addContext, useTerrain, addCameras, addFloodSurface, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
+    groundH, // operational-map ground height (lidar terrain when loaded, else 0) plus a lift
     flyOverview, flyToPoint, flyToFeature, streetLevel, topDown, intro,
     // Orbit around the point at screen centre until north is up, keeping tilt and distance.
     resetNorth: () => {

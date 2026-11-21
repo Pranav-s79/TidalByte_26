@@ -25,12 +25,14 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
   // ------------------------------------------------------------ map drawing
   function clear() { st.ents.forEach((e) => viewer.entities.remove(e)); st.ents = []; }
   const photoreal = () => scene.mapMode && scene.mapMode() === 'photorealistic';
+  // Operational map: just above its ground, which is the lidar terrain once it has loaded (else height 0).
+  const ground = (lon, lat, lift = ROAD_H) => (scene.groundH ? scene.groundH(lon, lat, lift) : lift);
   function positions(coords) {
     return photoreal() ? Cesium.Cartesian3.fromDegreesArray(coords.flat())
-      : Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ROAD_H]));
+      : Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ground(x, y)]));
   }
   function marker([lon, lat], text, color) {
-    return viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(lon, lat, photoreal() ? 0 : ROAD_H),
+    return viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(lon, lat, photoreal() ? 0 : ground(lon, lat)),
       point: { pixelSize: 13, color: C(color), outlineColor: C('#0a1220'), outlineWidth: 3,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
         heightReference: photoreal() ? Cesium.HeightReference.CLAMP_TO_GROUND : Cesium.HeightReference.NONE },
@@ -57,7 +59,7 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
         arcType: photoreal() ? Cesium.ArcType.GEODESIC : Cesium.ArcType.NONE, clampToGround: photoreal(), material,
         depthFailMaterial: photoreal() ? undefined : material } }));
       const c = o.geometry.coordinates; const mid = c[Math.floor(c.length / 2)];
-      st.ents.push(viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(mid[0], mid[1], photoreal() ? 20 : 8),
+      st.ents.push(viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(mid[0], mid[1], photoreal() ? 20 : ground(mid[0], mid[1], 8)),
         label: { text: `${o.id}${o.id === st.chosen ? ' · CHOSEN' : ''}`, font: '700 12px Inter, system-ui, sans-serif',
           fillColor: C('#0a1220'), showBackground: true, backgroundColor: C(ROUTE_COLOR[o.id], 0.95),
           backgroundPadding: new Cesium.Cartesian2(7, 4), disableDepthTestDistance: Number.POSITIVE_INFINITY } }));
@@ -79,7 +81,10 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
     const panel = document.getElementById('left');
     const open = panel && !document.body.classList.contains('left-collapsed');
     const left = open ? Math.min(panel.getBoundingClientRect().right / innerWidth, 0.45) : 0.04;
-    const pad = { left: left + 0.04, right: 0.12, top: 0.16, bottom: 0.14 };
+    const levels = document.getElementById('levels'); // water-level slider along the bottom, when shown
+    const lv = levels && !levels.hidden ? levels.getBoundingClientRect() : null;
+    const below = lv && lv.height ? Math.min((innerHeight - lv.top) / innerHeight + 0.05, 0.4) : 0.14;
+    const pad = { left: left + 0.04, right: 0.12, top: 0.16, bottom: Math.max(0.14, below) };
     const W = dx / (1 - pad.left - pad.right); const H = dy / (1 - pad.top - pad.bottom);
     [w, e] = [w - pad.left * W, e + pad.right * W];
     [s, n] = [s - pad.bottom * H, n + pad.top * H];
@@ -93,7 +98,8 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
     const which = st.picking;
     const pos = Cesium.Cartesian2.clone(e.position);
     st.pickedAt = performance.now();
-    let cart = photoreal() ? await pickOnCity(pos) : null;
+    // Pick the visible surface (3D city, or the operational map's terrain) before the flat ellipsoid.
+    let cart = await pickOnCity(pos);
     if (!cart) cart = viewer.camera.pickEllipsoid(pos, viewer.scene.globe.ellipsoid);
     if (!cart || st.picking !== which) return; // missed the earth, or the person cancelled meanwhile
     const g = Cesium.Cartographic.fromCartesian(cart);
