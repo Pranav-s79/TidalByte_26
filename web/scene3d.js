@@ -15,12 +15,10 @@ const viewer = new Cesium.Viewer('cesium', {
   navigationHelpButton: false, timeline: false, animation: false, infoBox: false,
   selectionIndicator: false, fullscreenButton: false,
 });
-// Opening view: high over Meyerland. After the data loads we fly in to the deepest USGS gauge.
-const OVERVIEW = {
-  destination: Cesium.Cartesian3.fromDegrees(-95.4425, 29.668, 2400),
-  orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-55), roll: 0 },
-};
-viewer.camera.setView(OVERVIEW);
+viewer.camera.setView({
+  destination: Cesium.Cartesian3.fromDegrees(-95.4455, 29.6772, 330),
+  orientation: { heading: Cesium.Math.toRadians(20), pitch: Cesium.Math.toRadians(-28), roll: 0 },
+});
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Toggleable groups. The evidence edge is deliberately not toggleable (it marks where "unknown" starts).
@@ -187,10 +185,8 @@ new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas).setInputAction((click) =
     addRoads(roads);
     addGauges(pins.features, offset);
     const deepest = deepestGauge(pins.features);
-    flyToGauge(deepest, offset);
     document.getElementById('replay-fly').addEventListener('click', () => {
       document.getElementById('panel').hidden = true;
-      viewer.camera.setView(OVERVIEW);
       flyToGauge(deepest, offset);
     });
   } catch (e) {
