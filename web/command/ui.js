@@ -142,7 +142,7 @@ export function renderCameras(result, onSelect) {
     host.append(h('button', { class: 'cam', type: 'button', onclick: () => onSelect(cam) },
       h('div', { class: 'cam-thumb' }, src ? h('img', { src, alt: '', loading: 'lazy' }) : h('span', { icon: 'video' })),
       h('div', { class: 'cam-meta' }, h('div', { class: 'cam-name' }, cam.name),
-        h('div', { class: 'cam-sub' }, cam.road || coordText(cam.lon, cam.lat)))));
+        h('div', { class: 'cam-sub' }, `${cam.source ? `${cam.source} · ` : ''}${cam.direction ? `${cam.direction} lanes · ` : ''}no frames yet`))));
   }
 }
 
@@ -372,6 +372,17 @@ export function renderDetails(sel, ctx) {
       field('Method', `Water levels blended from USGS marks within ${ctx.meta?.radius_m ?? 400} m, filled over lidar ground`)));
     host.append(h('p', { class: 'caveat', icon: 'info' }, ctx.meta?.label || 'Estimated peak extent. Not measured water. Not an all-clear.'));
     actions.append(fly('Zoom to area', 'locate', () => ctx.flyTo(sel)), fly('Overview', 'overview', ctx.overview));
+  } else if (sel.kind === 'camera') {
+    const c = sel.cam;
+    host.append(header([badge('k-slate', 'video', `${c.source || 'Traffic'} camera ${c.id}`)], c.name, coordText(c.lon, c.lat)));
+    host.append(h('dl', { class: 'fields' },
+      field('Camera ID', c.id, true),
+      field('Lanes nearest', c.direction),
+      field('Replay area', c.inBox === null ? null : c.inBox ? 'Inside' : 'Outside, within 1.7 km'),
+      field('Frames', 'None yet. TxDOT snapshot permission is pending, so no water reading comes from this camera.')));
+    host.append(h('p', { class: 'caveat', icon: 'info' },
+      'Planned input for live readings. In this replay, depths come from USGS high-water marks, not cameras.'));
+    actions.append(fly('Zoom here', 'locate', () => ctx.flyTo(sel)), fly('Overview', 'overview', ctx.overview));
   } else if (sel.kind === 'unknown') {
     host.append(header([badge('k-slate', 'info', PHRASE.unknown)], 'No evidence here'));
     host.append(h('p', { class: 'caveat', icon: 'info' }, ctx.terrain

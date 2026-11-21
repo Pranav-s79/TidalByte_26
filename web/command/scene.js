@@ -474,6 +474,25 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     }, reduceMotion() ? 0 : delay);
   }
 
+  // Traffic cameras (Prince's catalog, web/data/cameras.json): a small marker on a short stalk with a
+  // label when close. Neutral slate: they are a planned input, not evidence in this replay.
+  function addCameras(cams) {
+    for (const cam of cams) {
+      const g0 = groundH(cam.lon, cam.lat);
+      const info = { kind: 'camera', id: `cam-${cam.id}`, cam };
+      const stalk = viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArrayHeights([cam.lon, cam.lat, g0, cam.lon, cam.lat, g0 + 12]),
+        width: 1.5, material: C('#cbd5e1', 0.7), arcType: Cesium.ArcType.NONE } });
+      const head = viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(cam.lon, cam.lat, g0 + 12),
+        point: { pixelSize: 9, color: C('#0f172a'), outlineColor: C('#e2e8f0'), outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: `CAM ${cam.id}`, font: '600 11px Inter, system-ui, sans-serif', fillColor: C('#e2e8f0'),
+          showBackground: true, backgroundColor: C('#060c18', 0.8), backgroundPadding: new Cesium.Cartesian2(6, 3),
+          pixelOffset: new Cesium.Cartesian2(0, -16), verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2500), disableDepthTestDistance: Number.POSITIVE_INFINITY } });
+      stalk.cc = head.cc = info;
+      layers.evidence.push({ entity: stalk }, { entity: head });
+    }
+  }
+
   // A single expanding ring when a new observation lands. Restrained: one pulse, then gone.
   function pulseRing(lon, lat, color, g0 = groundH(lon, lat)) {
     if (reduceMotion()) return;
@@ -625,6 +644,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   function flyToFeature(info, opts) {
     if (info.kind === 'pin') { const [lon, lat] = info.feature.geometry.coordinates; flyToPoint(lon, lat, opts); return; }
     if (info.kind === 'water' && info.at) { flyToPoint(info.at.lon, info.at.lat, { range: 300, pitch: -28, ...opts }); return; }
+    if (info.kind === 'camera') { flyToPoint(info.cam.lon, info.cam.lat, { range: 320, pitch: -24, ...opts }); return; }
     const coords = info.kind === 'water' ? info.feature.geometry.coordinates[0] : info.feature.geometry.coordinates;
     const pts = Cesium.Cartesian3.fromDegreesArray(coords.flat());
     const sphere = Cesium.BoundingSphere.fromPoints(pts);
@@ -654,7 +674,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   }
 
   // ---------------------------------------------------------------- picking
-  const RANK = { pin: 0, road: 1, water: 2, unknown: 3 };
+  const RANK = { pin: 0, camera: 0, road: 1, water: 2, unknown: 3 };
   const infoOf = (hit) => (hit && hit.id ? hit.id.cc || hit.id : null);
   function pickAt(pos, drill = true) {
     const hits = drill ? scene.drillPick(pos, 8, 9, 9) : [scene.pick(pos, 7, 7)];
@@ -692,7 +712,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   });
 
   return {
-    viewer, addContext, useTerrain, addFloodSurface, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
+    viewer, addContext, useTerrain, addCameras, addFloodSurface, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
     flyOverview, flyToPoint, flyToFeature, streetLevel, topDown, intro,
     // Orbit around the point at screen centre until north is up, keeping tilt and distance.
     resetNorth: () => {

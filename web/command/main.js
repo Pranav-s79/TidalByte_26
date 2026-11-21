@@ -251,10 +251,8 @@ function deriveRoads(fc, grid) {
   renderLists();
   const [cameras, referenceViews] = await Promise.all([loadCameras(), loadReferenceViews()]);
   state.data.referenceViews = referenceViews;
-  ui.renderCameras(cameras, (cam) => {
-    scene.flyToPoint(cam.lon, cam.lat, { range: 320, pitch: -24 });
-    ui.toast(`Camera: ${cam.name}`, 'info', 2500);
-  });
+  state.cameras = cameras.cameras;
+  ui.renderCameras(cameras, (cam) => select({ kind: 'camera', id: `cam-${cam.id}`, cam }, { fly: true, focus: true }));
 
   ui.loaderStep('layers', 'active');
   try {
@@ -299,6 +297,7 @@ function deriveRoads(fc, grid) {
   (core.pins ? core.pins.features : []).forEach((feature, index) => {
     scene.addPin(feature, { delay: 900 + index * 140, pulse: true });
   });
+  scene.addCameras(state.cameras || []);
 
   const mapModes = ui.setupMapMode({
     available: Boolean(window.CESIUM_ION_TOKEN),

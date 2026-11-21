@@ -84,11 +84,15 @@ export async function loadCameras() {
     const list = Array.isArray(raw) ? raw : raw.cameras || [];
     const cameras = list.map((c, i) => ({
       id: String(c.id ?? c.camera_id ?? i),
-      name: c.name || c.label || c.description || `Camera ${c.id ?? i + 1}`,
+      name: c.name || c.label || (c.road && c.cross_street ? `${c.road} @ ${c.cross_street}` : null) || c.description || `Camera ${c.id ?? i + 1}`,
       lat: Number(c.lat ?? c.latitude ?? c.location?.lat),
       lon: Number(c.lon ?? c.lng ?? c.longitude ?? c.location?.lon),
       road: c.road || c.faces || c.road_name || null,
-      snapshot: c.snapshot_url || c.snapshot || c.thumbnail || c.baseline || null,
+      // only a reviewed local dry baseline is shown; live TranStar snapshots need TxDOT permission
+      snapshot: c.dry_baseline || null,
+      direction: c.near_lane_direction || null,
+      inBox: c.inside_replay_bbox ?? null,
+      source: raw.source || null,
     })).filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon)); // never invent a location
     return { cameras, missing: false };
   } catch (e) {
