@@ -73,7 +73,7 @@ confidence: "low"|"medium"|"high", reasoning: str, model: str,
 status: "ai_proposed"|"confirmed"|"rejected"|"needs_review", error: str|null
 ```
 
-Added by Lane B after the MVP (optional; `flood/run.py` ignores it): `detector: {model: str, objects: [{label, score, box: [x1, y1, x2, y2] in pixels}] | null, crops: [path], error?: str} | null`. A reading also becomes `needs_review` when Nemotron reads a depth against a vehicle or person the detector didn't find.
+Added by Lane B after the MVP (optional; `flood/run.py` ignores it): `detector: {model: str, objects: [{label, score, box: [x1, y1, x2, y2] in pixels}] | null, crops: [path], error?: str} | null`. A reading also becomes `needs_review` when Nemotron reads a depth against a vehicle or person the detector didn't find. Camera frames read by `flood/read_frame.py` also carry `camera_id: str`, `frame_issues: [str]` (any of `frozen_feed`, `camera_moved`, `obstructed`, `night`, `glare`, `rain_on_lens`, `blurry`, `no_baseline`), `frame_checks: {brightness, diff_from_previous}` and `baseline: str|null`.
 
 **Outputs in `web/data/`** (Lane C writes them, Lane D reads them). All EPSG:4326:
 - `water.geojson`: Polygons with `status` ("likely" | "possible") and `depth_band` ("0–0.3 m" | "0.3–0.6 m" | "0.6–1.2 m" | "over 1.2 m"). Likely areas are banded by low-run depth; possible areas by high-run depth.

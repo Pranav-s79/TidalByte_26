@@ -102,7 +102,7 @@ def _image(data, mime):
     return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{base64.b64encode(data).decode()}"}}
 
 
-def _messages(photo_bytes, photo_path, objects=None, crops=None, baseline=None, heights=None):
+def _messages(photo_bytes, photo_path, objects=None, crops=None, baseline=None, heights=None, extra=""):
     """Prompt + current frame, then the dry baseline frame and the detector's close-up crops when we have them.
 
     heights: the camera's reference heights (from data/cameras.json); default data/reference_heights.json.
@@ -110,7 +110,7 @@ def _messages(photo_bytes, photo_path, objects=None, crops=None, baseline=None, 
     """
     rows = heights if heights is not None else json.load(open(REF_PATH))
     table = "\n".join(f"  - {r['name']}: {r['height_m_low']}-{r['height_m_high']} m" for r in rows)
-    text = PROMPT.format(table=table) + _detector_note(objects)
+    text = PROMPT.format(table=table) + _detector_note(objects) + extra  # extra: e.g. camera-frame rules
     if baseline is not None or crops:
         text += "\nThe first image is the current frame."
     content = [{"type": "text", "text": text}, _image(photo_bytes, mimetypes.guess_type(photo_path)[0] or "image/jpeg")]
@@ -184,7 +184,8 @@ def cross_check(reading, objects):
 CROP_ROOT = os.path.join("cache", "crops")  # gitignored; one folder of crops per observation
 
 
-def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, baseline_path=None, heights=None):
+def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, baseline_path=None, heights=None,
+               extra_prompt=""):
     """One frame in, one observation out.
 
     detector(path, crop_dir) -> (detections, crops), e.g. flood.detect.detect. baseline_path is the same
@@ -206,7 +207,7 @@ def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, 
         except Exception as e:  # the detector is a second opinion; Nemotron still reads the photo without it
             det = {"model": name, "objects": None, "crops": [], "error": f"detector failed: {e}"}
     try:
-        messages = _messages(data, photo_path, objects, crops, baseline, heights)
+        messages = _messages(data, photo_path, objects, crops, baseline, heights, extra_prompt)
         reading = cross_check(parse_reading(client(messages)), objects)
     except Exception as e:  # network/auth/endpoint failure must not crash the pipeline
         reading = _empty(f"model call failed: {e}")

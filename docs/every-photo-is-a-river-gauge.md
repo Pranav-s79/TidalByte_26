@@ -12,9 +12,10 @@ Nov 21, 2026 · @Sujit Kushalnagar
 | Reference heights | `data/reference_heights.json` | Tire top, wheel hub, curb and knee, each row with a source | Houston curbs not yet checked. No row between the ground and the hub, so shallower water reads as "depth unknown" |
 | PyTorch detector | `flood/detect.py` | Pretrained torchvision Faster R-CNN (COCO), no training. Super VL gets its box list, close-up crops of the 2 largest objects and the camera's dry baseline. A depth read against a vehicle or person it didn't find goes to review | 1.2–1.5 s per frame on CPU. Boxed the flooded sedan in the test photo at 1.00 |
 | Route presenter | `flood/present_routes.py` | Nemotron Lightning compares the router's 2–3 options in at most three sentences. Every number is checked against the router output and banned words are rejected; a failing reply falls back to a template built from the same numbers | On the replay routes: passed the check on the first try, 12–20 s |
+| Camera frame reader | `flood/read_frame.py` | Reads a traffic-camera frame at the camera's known location against its dry baseline. Vets the frame (frozen feed and night without a model; glare, rain on the lens, blur, obstructed view and a moved camera from Super VL). Unusable frames go to review with no depth; poor ones get low confidence and stay out of predictions | Two public-domain dry Houston street photos as stand-ins: both read dry at high confidence, 11 s each. A mismatched baseline was flagged as `camera_moved` |
 | Camera hotspots + slide plot | `flood/depth_model.py` | Built on Pri's `flood/predict.py`: DBSCAN hotspots of cameras whose planning depth is over 0.30 m, and a plot of readings, mean ± 1 sigma and the up-to-60-min prediction | Synthetic series only; no real camera readings yet |
 
-88 tests pass on `main` (plus 1 expected failure documenting a `predict.py` behaviour). Test photos: two CC BY 2.0 Harvey photos from Wikimedia Commons with no GPS, so dry runs only. Pri built the per-camera prediction (`flood/predict.py`) and the least-deep router (`flood/route.py`) at 1:43 PM.
+100 tests pass on `main` (plus 1 expected failure documenting a `predict.py` behaviour). Test photos: two CC BY 2.0 Harvey photos and three public-domain Houston street photos from Wikimedia Commons, none with GPS, so dry runs only. Pri built the per-camera prediction (`flood/predict.py`) and the least-deep router (`flood/route.py`) at 1:43 PM.
 
 **What changed from the plan further down.**
 
@@ -26,12 +27,12 @@ Nov 21, 2026 · @Sujit Kushalnagar
 
 ## Next for Lane B
 
-1. **Camera frame reader** (polish task 2): frame-quality vetting and reading against the dry baseline. Build on fake frames now; real dry frames come from Prince's camera catalog.
-2. **Accuracy number** (polish task 5): Super VL alone vs. Super VL with the detector, on 20 or more labeled photos.
-3. **NVIDIA submission text** (draft below) with the measured numbers, before the 6:00 Devpost deadline.
+1. **Accuracy number** (polish task 5): Super VL alone vs. Super VL with the detector, on 20 or more labeled photos.
+2. **NVIDIA submission text** (draft below) with the measured numbers, before the 6:00 Devpost deadline.
+3. **Real camera frames (deferred):** TxDOT snapshot permission isn't available for the demo, so there are no TranStar frames to read. `data/cameras.json` lists 6 cameras (3 inside the replay box) with `dry_baseline` still null. The live image demo uses public-domain USGS field photos instead (`python -m flood.photo_demo`, which runs this reader and the detector).
 4. *Stretch:* let Lightning call the router as a tool itself (routing spec §6), instead of receiving its output.
 
-To agree on with Prince: the `reference_heights` field on each camera in `data/cameras.json`. Raised with Pri: `predict.py` extends the recent trend in a straight line (15 minutes of rising readings project to about 1.1 m at 60 minutes with about ±6 cm of sigma (synthetic series)), and its sigma doesn't grow inside gaps within the 90-minute window.
+For Prince: `flood.read_frame` reads these `cameras.json` fields: `id`, `lat`/`lon` (or `location: {lat, lon}`), optional `reference_heights` (same rows as `data/reference_heights.json`, for fixed references like a barrier or sign pole in that view) and `dry_baseline` (already in the catalog; null until a reviewed dry frame exists, then the oldest image in `data/frames/<id>/` is used). Raised with Pri: `predict.py` extends the recent trend in a straight line (15 minutes of rising readings project to about 1.1 m at 60 minutes with about ±6 cm of sigma, synthetic series), and its sigma doesn't grow inside gaps within the 90-minute window.
 
 ## The pitch and the problem
 
