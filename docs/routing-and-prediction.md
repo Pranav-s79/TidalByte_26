@@ -1,6 +1,6 @@
 # Routing and prediction
 
-Nov 21, 2026 · status: **planned**. Router and prediction are not built yet. The replay pipeline they build on is built (`flood/fill.py`, `flood/roads.py`, `flood/run.py`).
+Nov 21, 2026 · status: **planned**. The router and `flood/predict.py` are not built yet. A related per-camera model is built in `flood/depth_model.py` (Lane B) with different rules; see the note at the end of §1. The replay pipeline they build on is built (`flood/fill.py`, `flood/roads.py`, `flood/run.py`).
 
 This is the single source for how routing works and what it may say. Every other doc links here instead of restating it.
 
@@ -40,6 +40,19 @@ This is the single source for how routing works and what it may say. Every other
   - At least 4 readings in the last 90 minutes are needed to predict. Fewer than that: use the latest reading as Observed if it is under 20 minutes old, otherwise Unknown.
   - Never predict more than 60 minutes ahead.
 - This is the same Gaussian-process math as spatial interpolation, with time in place of distance. It smooths noisy frame-by-frame readings, and its uncertainty widens on its own as you look further ahead.
+
+> **Built vs. this spec (1:30 PM).** `flood/depth_model.py` (Sujit) already fits a Gaussian process per camera with scikit-learn, but under different rules. Pick one set before `predict.py` is built; `predict.py` can reuse its `fit()` and `predict()`.
+>
+> | | This spec | `depth_model.py` |
+> | --- | --- | --- |
+> | Minimum readings | 4 in the last 90 min | 2 (one reading returns its own range) |
+> | Length-scale bounds | 15–120 min | 5–120 min |
+> | Per-reading noise | σ = (high − low) / 4; low-confidence frames left out | ((high − low) / 2)², ×4 for low confidence |
+> | Rate of rise | μ(t + 10) − μ(t), looking ahead | μ(now) − μ(now − 10), looking back |
+> | Forecast | up to 60 min ahead | none: depth now only |
+> | Units | meters, as in observations | centimeters (`readings_from_observations()` converts) |
+>
+> Its `hotspots()` clusters cameras that are deep **right now** (DBSCAN, 1.5 km). That is not `CLAUDE.md`'s recurring hotspot, which counts flooding across different events.
 
 ### 2. From cameras to nearby roads (`flood/fill.py`, `flood/roads.py`, already built)
 

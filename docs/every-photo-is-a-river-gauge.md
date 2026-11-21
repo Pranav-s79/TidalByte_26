@@ -2,9 +2,39 @@
 
 Nov 21, 2026 · @Sujit Kushalnagar
 
+> **Status, 1:30 PM.** The team's live plan is [`docs/tasks/2026-11-21-polish.md`](tasks/2026-11-21-polish.md) and the routing rules are in [`docs/routing-and-prediction.md`](routing-and-prediction.md). Where this doc disagrees with them, they win. This doc keeps the pitch, the research and the sources.
+
+## What Lane B (Sujit, AI) has built
+
+| Piece | File | What it does | Measured so far |
+| --- | --- | --- | --- |
+| Nemotron photo reader | `flood/read_photo.py` | Real calls to `nvidia/nemotron-3.5-super-vl-120b-a12b` on NVIDIA Build: water visible, depth range against a reference object or "depth unknown", obstacles. Bad or cut-off replies become `needs_review`; a reading a person reviewed is never overwritten | 17–67 s per photo with reasoning on (it reasons before answering, so `max_tokens` is 8192). On one test photo, 5 runs gave the wheel hub (0.30–0.36 m) 3 times, the curb once and no depth once |
+| Reference heights | `data/reference_heights.json` | Tire top, wheel hub, curb and knee, each row with a source | Houston curbs not yet checked. No row between the ground and the hub, so shallower water reads as "depth unknown" |
+| PyTorch detector | `flood/detect.py` | Pretrained torchvision Faster R-CNN (COCO), no training. Super VL gets its box list, close-up crops of the 2 largest objects and the camera's dry baseline. A depth read against a vehicle or person it didn't find goes to review | 1.2–1.5 s per frame on CPU. Boxed the flooded sedan in the test photo at 1.00 |
+| Camera depth model | `flood/depth_model.py` | scikit-learn Gaussian process per camera (depth now, std, rising), DBSCAN hotspots of deep cameras, and a slide plot | Synthetic test series only; no real camera readings exist yet |
+
+57 tests pass on `main`. Test photos: two CC BY 2.0 Harvey photos from Wikimedia Commons with no GPS, so dry runs only.
+
+**What changed from the plan further down.**
+
+- **Lanes:** A = Prince (data, cameras), B = Sujit (AI), C = Pri (flood math, prediction, router), D = Pranav (web, design, pitch).
+- **Demo:** a Harvey 2017 replay of Meyerland is the proof of concept. Live TranStar cameras with least-deep routing is the product.
+- **PyTorch:** a pretrained detector, not a fine-tuned CNN, so no training data is needed.
+- **scikit-learn:** the map's water layer is a bathtub fill from USGS high-water marks (`flood/fill.py`), not a Gaussian process over pins. The Gaussian process runs over time, one per camera.
+- **App:** static MapLibre and Cesium pages in `web/`, not Next.js + Supabase.
+
+## Next for Lane B
+
+1. **Route options presenter** (polish task 3, NVIDIA track): Nemotron Lightning compares Pri's 2–3 route options, quoting only the router's numbers.
+2. **Camera frame reader** (polish task 2): frame-quality vetting and reading against the dry baseline. Build on fake frames now; real dry frames come from Prince's camera catalog.
+3. **Accuracy number** (polish task 5): Super VL alone vs. Super VL with the detector, on 20 or more labeled photos.
+4. **NVIDIA submission text** (draft below) with the measured numbers, before the 6:00 Devpost deadline.
+
+To agree on: with Prince, the `reference_heights` field on each camera in `data/cameras.json`; with Pri, one set of Gaussian-process rules (`depth_model.py` and the `predict.py` spec differ).
+
 ## The pitch and the problem
 
-An agent turns residents' flood photos into verified, street-level water-depth readings on a live map, so dispatchers and drivers can tell which streets are passable.
+An agent turns street-camera frames and residents' flood photos into reviewed, street-level water-depth readings on a live map, so dispatchers can see how deep the water is on each street before they send a vehicle.
 
 **Why depth matters.** Most flood deaths happen in cars. The National Weather Service cites CDC data that over half of flood-related drownings occur when a vehicle is driven into hazardous flood water ([NWS](https://www.weather.gov/safety/flood-turn-around-dont-drown)). Six inches of water reaches the bottom of most passenger cars, and a foot floats many vehicles ([weather.com](https://weather.com/safety/floods/news/flash-flooding-vehicle-danger-20140717)). From the driver's seat, those depths look alike.
 
@@ -57,26 +87,27 @@ Every photo goes through the same steps and ends as a depth pin that a human con
 
 &#91;embedded content: photo-to-route pipeline · 7 steps, 1 reject branch\]
 
-Photos that fail vetting stop there. Usable ones get two independent depth estimates, and nothing reaches the priority list until a dispatcher confirms it.
+Photos that fail vetting stop there. Usable ones get a Nemotron reading cross-checked by the PyTorch detector, and nothing reaches the map until a person confirms it.
 
 Confirmed pins then feed the route agent, which proposes least-deep routes within the depth limit the agency sets.
 
 ## Where AI/ML does the work
 
-Each of the three required tools has a job that a form or a search box couldn't do. The agent ties them together and ends every photo with a checkable result.
+Each of the three tools we chose (Nemotron, PyTorch and scikit-learn; the rubric doesn't require them) has a job that a form or a search box couldn't do. The agent ties them together and ends every photo with a checkable result.
 
 | Part | Tool | Job | Output |
 | --- | --- | --- | --- |
-| Photo vetting | Nemotron vision-language model (e.g. [Nemotron Nano 2 VL, 12B](https://developer.nvidia.com/blog/develop-specialized-ai-agents-with-new-nvidia-nemotron-vision-rag-and-guardrail-models/)) | Is this a flood? A duplicate or a reposted old photo? Does the location make sense? | Keep or reject, with a reason |
+| Photo vetting | Nemotron 3.5 Super VL (`nvidia/nemotron-3.5-super-vl-120b-a12b`, NVIDIA Build) | Is flood water visible? Planned: is the frame usable (night, glare, frozen feed)? | Keep or send to review, with a reason |
 | Depth reading | Same Nemotron VLM | Finds reference objects (tire, curb, sign, door, person) and where the waterline hits each one | Depth range in cm, objects used |
-| Object finder | PyTorch: pretrained torchvision Faster R-CNN (stretch: a CNN fine-tuned on depth levels) | Boxes cars, trucks, people, stop signs and hydrants so Super VL reads the waterline against known objects | Labeled boxes |
-| Depth map | scikit-learn `GaussianProcessRegressor` | Interpolates between geotagged pins | Continuous depth surface with uncertainty |
-| Hotspots | scikit-learn `DBSCAN` | Groups nearby deep readings | Ranked rescue-priority list |
-| Agent loop | Nemotron reasoning model | Runs the steps, merges the two depth estimates, writes a one-line explanation per pin | Pin + explanation, waiting for dispatcher approval |
+| Object finder | PyTorch: pretrained torchvision Faster R-CNN, ResNet-50 FPN v2, COCO (`flood/detect.py`) | Boxes cars, trucks, buses, motorcycles, people, stop signs and hydrants (score ≥ 0.6). Sends Super VL the box list and close-ups of the 2 largest. Flags a depth read against a vehicle or person it didn't find | Pixel boxes, crops, a boxed debug image |
+| Depth map | Bathtub fill from USGS high-water marks and lidar (`flood/fill.py`, numpy/scipy) | Spreads measured water levels across the ground | Likely, possible and unknown water, with depth bands |
+| Depth over time | scikit-learn `GaussianProcessRegressor`, one per camera (`flood/depth_model.py`) | Smooths a camera's readings over time | Depth now ± std, rising or not |
+| Hotspots | scikit-learn `DBSCAN` in meters via pyproj (`flood/depth_model.py`) | Groups nearby cameras whose cautious depth (mean + std) is over 30 cm | Ranked list of deep clusters |
+| Agent loop | Nemotron | Reads each frame, cross-checks it against the detector, writes a one-line explanation per pin | Pin + explanation, waiting for a person's review |
 | Least-deep routes | Nemotron reasoning model + routing tool (osmnx + networkx on OpenStreetMap) | Calls the router, checks the route against pins, re-plans when a new pin lands on it | Route that avoids flooded streets + list of what it avoided, each with its photo |
-| App | Next.js + Supabase + Leaflet | Upload, storage, live map, confirm/reject buttons | What judges see |
+| App | Static pages in `web/`: MapLibre map and a Cesium photorealistic 3D city | Live map, evidence panel, confirm/reject (planned) | What judges see |
 
-The combined estimate is the honest part: when the VLM and the CNN disagree, the pin shows a wider range and lower confidence instead of hiding the conflict.
+The cross-check is the honest part: when Nemotron reads a depth against a vehicle or person the detector didn't find, the reading goes to a person as `needs_review` instead of becoming a pin with a depth.
 
 ## Nemotron model plan
 
@@ -90,9 +121,9 @@ The event kit allows any Nemotron model. These picks follow the kit's own recomm
 | Stretch: voice reports | Nemotron 3.5 Transcribe or ASR Streaming | 40 languages; a resident can say "water's up to my knees on Bissonnet" instead of sending a photo |
 | Stretch: spoken directions | Magpie TTS Multilingual | Reads the dispatcher's chosen route aloud to the crew, in 12 languages |
 
-The Nemotron Nano 2 VL named in the earlier table still works; Super VL is the kit's current pick for images.
+Super VL is the kit's current pick for images and the model we use. The Nemotron Nano 12B v2 VL in NVIDIA's docs was not on the hosted NVIDIA Build model list we checked.
 
-**Access and compute.** Call the free hosted endpoints on NVIDIA Build from a Brev CPU instance; the kit says most hackathon agents never need more. Each team gets one $50 Brev coupon. Use a T4 or L4 only if fine-tuning the CNN on CPU is too slow, and stop instances when idle.
+**Access and compute.** Call the free hosted endpoints on NVIDIA Build from a Brev CPU instance; the kit says most hackathon agents never need more. Each team gets one $50 Brev coupon. The PyTorch detector runs on CPU (1.2–1.5 s per frame), so no GPU is needed; stop instances when idle.
 
 **Framework.** Wrap the agent in the NeMo Agent Toolkit. It works with LangGraph or a custom stack and adds tracing and evaluation, which feed straight into the criteria below.
 
@@ -116,6 +147,8 @@ The agent also proposes least-deep route options. It runs a real routing tool ov
 
 ## Demo moment and design
 
+*The team's current demo script is Pranav's pitch task in the polish doc: replay → router on that data → "next: live TranStar cameras". The walkthrough below is the original photo-drop idea.*
+
 The whole demo is one gesture: drop in a flooded-street photo and watch a depth pin land and the map redraw.
 
 A 60-second walkthrough:
@@ -126,7 +159,7 @@ A 60-second walkthrough:
 4. A cluster turns red and moves to the top of the priority list. The dispatcher taps Confirm.
 5. Type "Get me from Meyerland to the Medical Center." The agent draws a route around the flooded streets and lists each one it avoided, with its photo. Drop a new pin on that route and watch it re-plan.
 6. Drop in a reposted old photo. The agent rejects it and says why.
-7. End on one slide comparing accuracy: VLM alone vs. CNN alone vs. combined.
+7. End on one slide comparing accuracy: Super VL alone vs. Super VL with the PyTorch detector (polish task 5).
 
 **Design (Adobe "best design" angle).** The design is how non-experts read danger, not decoration:
 
@@ -145,7 +178,7 @@ Published research already estimates flood depth from crowd photos to within a f
 | [FloodVision (arXiv 2509.04772)](https://arxiv.org/pdf/2509.04772) | Vision-language model names reference objects and their submerged share; a knowledge graph supplies true object heights | 110 crowdsourced photos from MyCoast New York | 8.17 cm, vs. 10.28 cm for the VLM alone |
 | [Alizadeh & Behzadan, 2023](https://repository.library.noaa.gov/view/noaa/58645) | CNN detects traffic signs; compares visible pole length before and after the flood | Crowdsourced photos of submerged signs | 4.71 in |
 
-The FloodVision result is the key design lesson: telling the model the real heights of reference objects beats letting it guess. Build a small table of reference heights (sedan tire, curb, stop sign, door handle) on day one.
+The FloodVision result is the key design lesson: telling the model the real heights of reference objects beats letting it guess. We built that table: `data/reference_heights.json` (tire top, wheel hub, curb, knee), each row with a source.
 
 FloodVision doesn't say its curated dataset is public, so plan to collect and label your own demo set.
 
@@ -170,11 +203,13 @@ How to position it:
 - **No hardware.** Nothing to install before the flood.
 - **The agent vets every photo** before it reaches the map.
 - **It adds depth to the maps Houston already uses** instead of replacing them.
-- **It acts on the data** by planning routes around confirmed flooding.
+- **It acts on the data** by proposing least-deep route options within the agency's depth limit.
 
 Name BluPix, CRIS-HAZARD and the Texas A&M routing paper as prior work in the pitch. A judge may know BluPix.
 
 ## Today's plan: 11:30 AM to 7:30 PM
+
+*Superseded at 1:00 PM by the team plan in [`docs/tasks/2026-11-21-polish.md`](tasks/2026-11-21-polish.md). Kept for reference.*
 
 Hacking ends at 7:30 PM, preliminary Devpost submissions are due at 6:00 PM, and judging is in person from 8:00 to 9:30 PM in MSC 2300. That leaves about 8 hours, so this plan replaces the 12-hour plan below.
 
@@ -218,7 +253,7 @@ Cut in this order if behind: time slider, DBSCAN hotspots, voice and TTS stretch
 
 ## 12-hour build plan
 
-*Written before we knew the event runs 10:00 AM to 7:30 PM; use Today's plan above. Kept for reference.*
+*Written before we knew the event runs 10:00 AM to 7:30 PM. Superseded; the team plan is in [`docs/tasks/2026-11-21-polish.md`](tasks/2026-11-21-polish.md). Kept for reference.*
 
 The plan assumes a team of four with one owner per lane; with fewer people, merge the model and agent lanes. Tick items off as you go.
 
@@ -273,7 +308,7 @@ On our working rubric it averages 4.4 of 5 (Ingenuity lowered to 3 after finding
 
 | Criterion | Score /5 | Why |
 | --- | --- | --- |
-| Technicality | 5 | Multimodal reading, a trained model and spatial interpolation with uncertainty |
+| Technicality | 5 | Multimodal reading with Super VL, a pretrained PyTorch detector cross-checking it, a per-camera Gaussian process and the bathtub fill |
 | Ingenuity | 3 | Photo-depth apps (BluPix, CRIS-HAZARD) and flood-routing research exist; any-photo reading, agent vetting and live re-routing are the new parts |
 | Diversity | 5 | Hydrology, emergency management, computer vision, GIS, community reporting |
 | Applicability | 4 | Clear need; responder adoption is untested |
@@ -281,7 +316,7 @@ On our working rubric it averages 4.4 of 5 (Ingenuity lowered to 3 after finding
 | NVIDIA track | strong | The agent finishes work: vets each photo, places a pin and updates the priority list, all checked by a dispatcher, then proposes least-deep routes within the agency's depth limit |
 | Adobe track | strong | Depth silhouettes, confidence shading and a time slider make danger readable to non-experts |
 
-For the NVIDIA pitch, say the loop out loud: photo in → Nemotron judges and measures → pin and priority list out → human confirms → Nemotron routes around it.
+For the NVIDIA pitch, say the loop out loud: frame in → PyTorch boxes the objects → Nemotron reads the waterline → pin out → a person confirms → Nemotron presents least-deep route options → the dispatcher picks.
 
 ## Meeting the NVIDIA track criteria
 
@@ -289,16 +324,16 @@ The track asks for "an agent where the model is doing real work" and then proof 
 
 | Official criterion | How we show it |
 | --- | --- |
-| 1. Core model usage | Nemotron makes every decision: keep or reject each photo, read the waterline, merge the estimates, plan and re-plan routes. Without it there is no product. |
-| 2. Technical execution | Orchestrator (Lightning) plus a vision specialist (Super VL), tool calls to the router, NeMo Agent Toolkit traces, and latency per photo shown on screen. If a VLM call fails, the pin falls back to the CNN estimate and is marked low confidence. |
-| 3. Quality of AI output | Prompts grounded in a reference-height table (FloodVision's lesson), error measured on 50 held-out photos, Content Safety screening, and dispatcher confirm/reject as the feedback loop. |
+| 1. Core model usage | Nemotron makes every decision: keep or flag each frame, read the waterline against the detector's boxes, explain each pin, and present the router's options. Without it there is no product. |
+| 2. Technical execution | Orchestrator (Lightning) plus a vision specialist (Super VL), a PyTorch detector as a second opinion, tool calls to the router, and latency per photo shown on screen. If a Super VL call fails or runs out of tokens, nothing is saved as a depth; the reading becomes `needs_review`. |
+| 3. Quality of AI output | Prompts grounded in a sourced reference-height table (FloodVision's lesson) and the detector's boxes, error measured on 20 or more labeled photos (planned, polish task 5), and a person's confirm/reject as the feedback loop. |
 | 4. Impact and usefulness | Clear audience (dispatchers and drivers in Houston), a real problem (vehicle drownings), and a path past the hackathon: county maps show flood extent but not depth. |
 | 5. Creativity and differentiation | Reads any photo, not just stop signs; acts by routing instead of only mapping; always on, so it keeps watching new photos and re-plans. |
 
 **Proving Nemotron was the right choice.** Show numbers, not claims:
 
 - **Accuracy:** depth error for Super VL alone vs. Super VL grounded with detector boxes and reference heights.
-- **Speed:** seconds per photo and per route request, with Lightning vs. Super VL as the orchestrator. This shows why the small fast model handles routing and the vision model handles photos.
+- **Speed:** seconds per photo and per route request. Measured so far: Super VL 17–67 s per photo with reasoning on (about 2 s with it off, but less consistent); the detector 1.2–1.5 s per frame on CPU. That's why route text goes to the small, fast Lightning model and photos go to Super VL.
 - **Tool use:** successful vs. failed tool calls from the traces.
 - **Open weights:** a county could self-host the same models (the kit lists open weights on Hugging Face), so residents' photos never leave its servers.
 
@@ -308,7 +343,9 @@ Don't claim Nemotron beats other models unless you measured it.
 
 The kit asks for a short explanation of what Nemotron is doing, why it matters, and how we maximize its capabilities. Paste this and fill in the brackets with measured numbers.
 
-> Every Photo Is a River Gauge is an always-on flood agent for Houston. Most flood deaths happen when drivers enter water of unknown depth, and official maps show where water is, not how deep. Nemotron 3.5 Super VL vets each resident photo (is it a flood, is it recent, is the location plausible) and reads where the waterline hits reference objects of known height to produce a depth range. Nemotron 3.5 Lightning orchestrates: it checks that estimate against objects boxed by a PyTorch detector, explains each pin in one line, and calls a routing tool that treats confirmed flooding as closed roads, re-planning when new pins land. Nemotron 3.5 Content Safety screens uploads before they reach the public map, and a dispatcher confirms every pin. We maximize Nemotron by grounding prompts in a reference-height table, splitting work between a fast tool-calling model and a vision model, and evaluating on \[N\] held-out photos: \[X\] cm error with grounding vs. \[Y\] cm without, at \[Z\] seconds per photo.
+> Every Photo Is a River Gauge helps Houston emergency dispatchers see how deep the water is on the streets they need. Most flood deaths happen when drivers enter water of unknown depth, and official maps show where water is, not how deep. Nemotron 3.5 Super VL reads each street-camera frame or photo: it decides whether flood water is visible and reads where the waterline meets objects of known height (tire, wheel hub, curb, knee) to give a depth range, or says the depth is unknown. A pretrained PyTorch detector first boxes the cars, people and signs; Super VL gets those boxes, close-up crops and the camera's dry baseline, and a depth read against an object the detector didn't find goes to a person instead of the map. A scikit-learn Gaussian process per camera turns readings into the depth now, its uncertainty and whether the water is rising. \[Planned: Nemotron 3.5 Lightning presents 2–3 least-deep route options within the depth limit the agency sets, and the dispatcher picks.\] Every AI reading waits for a person before it changes the map. We maximize Nemotron by grounding it in a sourced reference-height table and the detector's boxes, using its reasoning mode, and evaluating on \[N\] labeled photos: \[X\] cm error with the detector vs. \[Y\] cm without, at \[Z\] seconds per photo.
+
+Before submitting, fill the brackets with measured numbers and delete anything that isn't built.
 
 ## Risks, ethics and open questions
 
@@ -329,9 +366,10 @@ Open questions:
 - [x] Does the event require a specific Nemotron model or hosting?
 
   Answered by the event kit: any Nemotron model qualifies; hosted endpoints on NVIDIA Build or OpenRouter, or open weights on Brev.
-- [ ] Where do we get a few hundred geotagged photos from one flood, and are we allowed to use them?
-- [ ] Team size: does the four-lane plan fit?
-- [ ] Which part of Houston do we load for routing, and does it match where our demo photos are?
+- [ ] Where do we get geotagged flood photos or frames, and are we allowed to use them? (Prince's photo hunt. So far: two CC BY 2.0 Harvey photos without GPS, used only for dry-run tests.)
+- [x] Team size: four lanes. A = Prince (data), B = Sujit (AI), C = Pri (flood math, prediction, router), D = Pranav (web, design).
+- [x] Which part of Houston? Meyerland along Brays Bayou, replaying Hurricane Harvey 2017.
+- [ ] One set of Gaussian-process rules: `flood/depth_model.py` vs. the `predict.py` spec in `docs/routing-and-prediction.md`.
 
 ## Sources
 
@@ -354,3 +392,8 @@ Open questions:
 - [Ask 2: Can you get highway video for insurance purposes?](https://click2houston.com/traffic/2021/02/11/ask-2-can-you-get-highway-video-for-insurance-purposes), KPRC 2 (TranStar has about 1,000 freeway cameras)
 - [What will it take for Houston TranStar cameras to record?](https://www.click2houston.com/news/local/2024/05/15/what-will-it-take-for-houston-transtar-cameras-to-record), KPRC 2 (system does not record video or save images)
 - [Urban flood depth from traffic-camera images](https://link.springer.com/article/10.1007/s11269-023-03669-9), Water Resources Management, 2023
+- [Nemotron Nano 12B v2 VL API (image message format)](https://docs.nvidia.com/nim/vision-language-models/1.6.0/examples/nemotron-nano-12b-v2-vl/api.html), NVIDIA NIM docs
+- [Iowa DOT Design Manual 3C-2: Curbs](https://iowadot.gov/design-manual/chapter-3-cross-sections/3c-2-curbs) (curb heights)
+- [ANSUR II public data](https://www.openlab.psu.edu/ansur2/), Penn State OPEN Design Lab (knee heights)
+- [Tire size calculator, 195/65R15](https://tirewheelguide.com/calculator/195-65-15/) (tire diameters)
+- Test photos: "Hurricane-Tropical Storm Harvey in Houston - August 27 2017", R. Crap Mariner, CC BY 2.0, via Wikimedia Commons

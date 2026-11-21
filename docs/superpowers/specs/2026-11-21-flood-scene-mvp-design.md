@@ -38,7 +38,7 @@ This narrows `CLAUDE.md`: the 3D scene is now the centerpiece, built on top of t
 | Buildings in 3D | Extruded from OpenFreeMap vector tiles (OpenStreetMap buildings) | Free, no key. OSM has no heights here, so heights are default values labeled "approximate" |
 | Water layer | Bathtub fill (details below) | Simple, explainable math, and hydrologists recognize the method |
 | Display | Static web page: MapLibre GL JS with the OpenFreeMap "liberty" style, loading GeoJSON files | No backend for the MVP; the web page reads files |
-| AI | Nemotron VL on NVIDIA Build reads a photo and returns structured JSON | Required for the NVIDIA track; it does real work |
+| AI | Nemotron 3.5 Super VL (`nvidia/nemotron-3.5-super-vl-120b-a12b`) on NVIDIA Build reads a photo and returns structured JSON. A pretrained PyTorch detector (`flood/detect.py`) boxes vehicles, people and signs first and cross-checks the reading | Required for the NVIDIA track; it does real work. The detector is a second opinion and never writes a depth itself |
 | Review | An AI reading starts as `ai_proposed`. Only `confirmed` readings with a depth feed the water layer | Keeps a human in the loop |
 
 ### Bathtub fill
@@ -72,6 +72,8 @@ reference_object: str|null, obstacles: [{type: str, note: str}],
 confidence: "low"|"medium"|"high", reasoning: str, model: str,
 status: "ai_proposed"|"confirmed"|"rejected"|"needs_review", error: str|null
 ```
+
+Added by Lane B after the MVP (optional; `flood/run.py` ignores it): `detector: {model: str, objects: [{label, score, box: [x1, y1, x2, y2] in pixels}] | null, crops: [path], error?: str} | null`. A reading also becomes `needs_review` when Nemotron reads a depth against a vehicle or person the detector didn't find.
 
 **Outputs in `web/data/`** (Lane C writes them, Lane D reads them). All EPSG:4326:
 - `water.geojson`: Polygons with `status` ("likely" | "possible") and `depth_band` ("0–0.3 m" | "0.3–0.6 m" | "0.6–1.2 m" | "over 1.2 m"). Likely areas are banded by low-run depth; possible areas by high-run depth.
