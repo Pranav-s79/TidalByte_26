@@ -2,6 +2,7 @@ numpy
 scipy
 rasterio
 osmnx
+networkx
 requests
 Pillow
 pytest

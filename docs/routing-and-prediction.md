@@ -1,6 +1,6 @@
 # Routing and prediction
 
-Nov 21, 2026 · status: **planned**. The router and `flood/predict.py` are not built yet. A related per-camera model is built in `flood/depth_model.py` (Lane B) with different rules; see the note at the end of §1. The replay pipeline they build on is built (`flood/fill.py`, `flood/roads.py`, `flood/run.py`).
+Nov 21, 2026 · status: **built** (1:43 PM): `flood/predict.py` and `flood/route.py` (Pri), with replay routes in `web/data/routes.json`; the route presenter `flood/present_routes.py` (Sujit, §6). The replay pipeline they build on is `flood/fill.py`, `flood/roads.py`, `flood/run.py`.
 
 This is the single source for how routing works and what it may say. Every other doc links here instead of restating it.
 
@@ -41,18 +41,9 @@ This is the single source for how routing works and what it may say. Every other
   - Never predict more than 60 minutes ahead.
 - This is the same Gaussian-process math as spatial interpolation, with time in place of distance. It smooths noisy frame-by-frame readings, and its uncertainty widens on its own as you look further ahead.
 
-> **Built vs. this spec (1:30 PM).** `flood/depth_model.py` (Sujit) already fits a Gaussian process per camera with scikit-learn, but under different rules. Pick one set before `predict.py` is built; `predict.py` can reuse its `fit()` and `predict()`.
+> **As built (2:10 PM).** `predict.py` follows this section and adds a weighted linear trend under the Gaussian process, because the zero-mean process alone pulled a rising series back toward its average. `flood/depth_model.py` (Sujit) builds on it: `hotspots()` clusters cameras whose planning depth is over 0.30 m **right now** (DBSCAN, 1.5 km), which is not `CLAUDE.md`'s recurring hotspot across events, and `plot_camera()` draws the slide.
 >
-> | | This spec | `depth_model.py` |
-> | --- | --- | --- |
-> | Minimum readings | 4 in the last 90 min | 2 (one reading returns its own range) |
-> | Length-scale bounds | 15–120 min | 5–120 min |
-> | Per-reading noise | σ = (high − low) / 4; low-confidence frames left out | ((high − low) / 2)², ×4 for low confidence |
-> | Rate of rise | μ(t + 10) − μ(t), looking ahead | μ(now) − μ(now − 10), looking back |
-> | Forecast | up to 60 min ahead | none: depth now only |
-> | Units | meters, as in observations | centimeters (`readings_from_observations()` converts) |
->
-> Its `hotspots()` clusters cameras that are deep **right now** (DBSCAN, 1.5 km). That is not `CLAUDE.md`'s recurring hotspot, which counts flooding across different events.
+> Two behaviours to know: the trend extends in a straight line (15 minutes of rising readings project to about 1.1 m at 60 minutes with about ±6 cm of sigma (synthetic series)), and inside the 90-minute window sigma does not grow between far-apart readings, because the time scale can reach 120 min.
 
 ### 2. From cameras to nearby roads (`flood/fill.py`, `flood/roads.py`, already built)
 
@@ -95,6 +86,8 @@ The alert shows the old and new numbers plus fresh options. Only the dispatcher 
 1. Nemotron Lightning calls the tool `route_options(start, end, vehicle_type)`.
 2. It writes at most three sentences comparing the options, quoting only numbers from the tool output.
 3. A test checks that every number matches the tool output and that none of the banned words from rule 1 appear.
+
+**As built (`flood/present_routes.py`):** Lightning receives the router's output rather than calling `route_options` itself (tool calling is a stretch). A reply is shown only if every number in it appears in the router output, it has no banned word and it is at most three sentences. One retry with the problems listed, then a template built from the same numbers. Output: `web/data/route_summary.json`.
 
 ## Tests that pin the math
 
