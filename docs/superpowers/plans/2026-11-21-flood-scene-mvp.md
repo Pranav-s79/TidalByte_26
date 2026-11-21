@@ -19,7 +19,7 @@
 - Never invent coordinates. A photo without a location is rejected.
 - An observation feeds the water layer **only** if `status == "confirmed"` and its depth is not null.
 - `NVIDIA_API_KEY` and `NEMOTRON_VL_MODEL` come from environment variables and are never committed.
-- Each lane edits only its own files. Commit to `main` often; run `git pull --rebase` before every push.
+- Each lane edits only its own files. All MVP work goes on the `mvp` branch (`git checkout mvp`). Commit often; run `git pull --rebase` before every push. Merge `mvp` into `main` after Task I passes.
 
 ## Review Focus
 
@@ -374,7 +374,7 @@ def test_confirmed_without_depth_is_pin_only(tiny_inputs):
   - [ ] a pin click shows the measured depth
   - [ ] the word "safe" appears nowhere
 - [ ] **Step 5:** Run `pytest -v`. Expected: all pass.
-- [ ] **Step 6:** Commit the generated `web/data/` (it doubles as the offline demo backup), then `git tag mvp` and push.
+- [ ] **Step 6:** Commit the generated `web/data/` (it doubles as the offline demo backup), then `git tag v0.1-mvp`, push, and merge `mvp` into `main`.
 
 ---
 
