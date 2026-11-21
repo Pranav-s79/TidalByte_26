@@ -1,0 +1,11 @@
+id,lat,lon,water_elev_m,depth_m,uncertainty_m,quality,source,description
+22840,29.691815,-95.442931,15.5853,0.6645,0.0396,Good,usgs_hwm,North Braeswood Blvd near Brays Bayou Greenway
+22842,29.688885,-95.436128,15.6707,0.6187,0.0396,Good,usgs_hwm,North Braeswood Blvd near Brays Bayou Greenway
+22856,29.689105,-95.437127,15.3741,1.1217,0.0396,Good,usgs_hwm,Linkview Dr. near Brays Bayou Greenway
+22857,29.68801,-95.439011,15.3787,0.6523,0.0396,Good,usgs_hwm,Linkview Dr. near Brays Bayou Greenway
+22883,29.687922,-95.43653,15.3424,0.8473,0.0396,Good,usgs_hwm,Linkterrace Ln near Linkwood Park
+22884,29.688885,-95.436128,15.2872,0.6858,0.0396,Good,usgs_hwm,Linkterrace Ln near Linkwood Park
+22890,29.682888,-95.450758,16.0843,1.7678,0.0396,Good,usgs_hwm,Cliffwood Court near Brays Bayou
+22892,29.681338,-95.451836,16.1242,1.1491,0.0396,Poor,usgs_hwm,Cliffwood Court near Brays Bayou
+22893,29.681111,-95.450257,16.2861,1.3929,0.0396,Good,usgs_hwm,Meyerwood Drive off Cliffwood Drive near Brays Bayou Greenway
+22894,29.681191,-95.449012,15.8901,0.8382,0.0396,Good,usgs_hwm,Meyerwood Drive off Cliffwood Drive near Brays Bayou Greenway
