@@ -1,6 +1,6 @@
 # Routing and prediction
 
-Nov 21, 2026 · status: **built** (1:43 PM): `flood/predict.py` and `flood/route.py` (Pri), with replay routes in `web/data/routes.json`; the route presenter `flood/present_routes.py` (Sujit, §6). The replay pipeline they build on is `flood/fill.py`, `flood/roads.py`, `flood/run.py`.
+Nov 21, 2026 · status: **built** (1:43 PM): `flood/predict.py` and `flood/route.py` (Pri), with replay routes in `web/data/routes.json`; the route presenter `flood/present_routes.py` (Sujit, §6). The replay pipeline they build on is `flood/fill.py`, `flood/roads.py`, `flood/run.py`. Camera frames are read into observations by `flood/read_frame.py` (Sujit), which `predict.readings_from_observations` uses as they are.
 
 This is the single source for how routing works and what it may say. Every other doc links here instead of restating it.
 
