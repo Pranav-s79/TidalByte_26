@@ -14,6 +14,43 @@ An agent turns residents' flood photos into verified, street-level water-depth r
 
 **What it is not.** It doesn't predict or prevent floods, and it never replaces official warnings. Its value is the first few hours of a flood, when everyone is guessing.
 
+## Update: street cameras for emergency dispatch
+
+The input is now Houston's traffic cameras instead of resident photos, and the user is an emergency dispatcher who needs the least-deep route for a vehicle, for example crossing 6 inches of water instead of 1 foot. Sections below still say "photo" in places; read it as "camera frame."
+
+| Part | Before (photos) | Now (cameras) |
+| --- | --- | --- |
+| Input | Resident uploads | Snapshots from Houston TranStar's roughly 1,000 freeway cameras ([KPRC](https://click2houston.com/traffic/2021/02/11/ask-2-can-you-get-highway-video-for-insurance-purposes)) |
+| Location | Read from photo metadata | Fixed and known for each camera |
+| Vetting | Fakes and reposts | Frame quality: night, glare, rain on the lens, frozen feed, camera turned away |
+| Depth reading | Reference objects in an unknown scene | Current frame compared with the same camera's dry baseline; fixed references (curb, barrier, sign pole) measured once |
+| Time | One reading per photo | A reading every few minutes per camera, so water is rising or falling |
+| Coverage | Wherever people post | Only where cameras point, mostly freeways; everything else is "no camera" |
+| Routing goal | Avoid all water | Least-deep route within the vehicle's depth limit |
+| Demo data | Uploaded photos | TranStar does not record video or save images ([KPRC](https://www.click2houston.com/news/local/2024/05/15/what-will-it-take-for-houston-transtar-cameras-to-record)), so we collect dry baselines today and flood-time frames from a past event, and replay them |
+
+**How the dispatcher router works.**
+
+1. The agency sets a maximum safe depth for each vehicle type. A person sets it, never the agent.
+2. Each road segment a camera watches gets a depth of mean + 1 standard deviation, so the router plans on the cautious number.
+3. Drop every segment deeper than the vehicle's limit.
+4. Among the remaining routes, pick the one whose deepest point is shallowest, then the shortest of those. To do this, try depth caps in small steps (0, 5, 10 cm and up to the limit); the first cap that still connects start to end wins, and `networkx` finds the shortest path under it.
+5. Nemotron Lightning presents 2–3 options with total distance, deepest point and distance not covered by any camera. The dispatcher picks one.
+6. If a camera on the chosen route shows water rising, the agent re-plans and alerts the dispatcher.
+
+Roads with no camera stay open, since most roads have none, but they're drawn grey and counted on every option card so the dispatcher sees what is unobserved.
+
+**Depth over time.** Each camera gets its own Gaussian process with time in place of distance: the same math, smoothing noisy frame-by-frame readings and giving a rate of rise with uncertainty.
+
+**Positioning.** Researchers have already estimated flood depth from existing traffic-camera images ([Water Resources Management, 2023](https://link.springer.com/article/10.1007/s11269-023-03669-9)), so lead with what's new: an agent that turns a city's existing cameras into live, depth-aware routing for dispatchers, with no new hardware (CRIS-HAZARD installs its own cameras).
+
+**New risks.**
+
+- [ ] Find flood-time frames from at least 5 cameras in one corridor of a past event (the biggest demo risk)
+- [ ] Capture dry baseline frames from those same cameras today
+- [ ] Check TranStar's terms for reusing camera snapshots, ask an organizer, and credit TranStar on screen
+- [ ] Night and rain frames: have the agent mark them low confidence rather than guess
+
 ## How it works
 
 Every photo goes through the same steps and ends as a depth pin that a human confirms.
@@ -32,7 +69,7 @@ Each of the three required tools has a job that a form or a search box couldn't 
 | --- | --- | --- | --- |
 | Photo vetting | Nemotron vision-language model (e.g. [Nemotron Nano 2 VL, 12B](https://developer.nvidia.com/blog/develop-specialized-ai-agents-with-new-nvidia-nemotron-vision-rag-and-guardrail-models/)) | Is this a flood? A duplicate or a reposted old photo? Does the location make sense? | Keep or reject, with a reason |
 | Depth reading | Same Nemotron VLM | Finds reference objects (tire, curb, sign, door, person) and where the waterline hits each one | Depth range in cm, objects used |
-| Second opinion | PyTorch: small CNN (e.g. ResNet-18) fine-tuned on depth levels | Classifies the photo as ankle / knee / waist / car-door / car-roof | Depth level + confidence |
+| Object finder | PyTorch: pretrained torchvision Faster R-CNN (stretch: a CNN fine-tuned on depth levels) | Boxes cars, trucks, people, stop signs and hydrants so Super VL reads the waterline against known objects | Labeled boxes |
 | Depth map | scikit-learn `GaussianProcessRegressor` | Interpolates between geotagged pins | Continuous depth surface with uncertainty |
 | Hotspots | scikit-learn `DBSCAN` | Groups nearby deep readings | Ranked rescue-priority list |
 | Agent loop | Nemotron reasoning model | Runs the steps, merges the two depth estimates, writes a one-line explanation per pin | Pin + explanation, waiting for dispatcher approval |
@@ -71,7 +108,7 @@ The agent also plans safe routes. It runs a real routing tool over Houston's roa
 
 **Why Nemotron calls a router instead of routing itself.** Language models are unreliable at shortest-path math, so Nemotron decides and explains while the tool computes. NVIDIA positions its Nemotron Nano reasoning model for agentic reasoning that includes tool calling ([NVIDIA](https://developer.nvidia.com/blog/develop-specialized-ai-agents-with-new-nvidia-nemotron-vision-rag-and-guardrail-models/)).
 
-**The one rule: never route through water.** Any confirmed or uncertain flooded segment counts as closed, however shallow (see the depths in the pitch above). A dispatcher mode for high-water rescue trucks gets its own threshold, set by a person, never by the agent.
+**The routing rule: least-deep route within the vehicle's limit.** Dispatchers sometimes must cross water, so the router picks the route whose deepest point is shallowest (6 inches beats 1 foot), then the shortest of those, and never exceeds the depth limit the agency sets for that vehicle. Details are in the camera update section above.
 
 **Prior work.** Texas A&M researchers already showed flood-aware routing in Houston, combining gauge readings with 20 crowd photos from Harvey ([Alizadeh et al., 2022](https://repository.library.noaa.gov/view/noaa/57328)). This version adds the agent, live photo vetting and plain-language requests.
 
@@ -162,7 +199,7 @@ The biggest change is that **the PyTorch piece uses a pretrained detector instea
 
 **4:30–5:30 PM: measure and fix**
 
-- [ ] A + D: depth error on the 30 labeled photos (VLM alone vs. detector-only rule vs. combined) and seconds per photo
+- [ ] A + D: depth error on the 30 labeled photos (Super VL alone vs. Super VL with detector boxes and the reference-height table) and seconds per photo
 - [ ] All: fix whatever breaks in the demo path
 
 **5:30–6:00 PM: preliminary Devpost**
@@ -258,7 +295,7 @@ The track asks for "an agent where the model is doing real work" and then proof 
 
 **Proving Nemotron was the right choice.** Show numbers, not claims:
 
-- **Accuracy:** depth error for Super VL alone, the CNN alone, and both combined.
+- **Accuracy:** depth error for Super VL alone vs. Super VL grounded with detector boxes and reference heights.
 - **Speed:** seconds per photo and per route request, with Lightning vs. Super VL as the orchestrator. This shows why the small fast model handles routing and the vision model handles photos.
 - **Tool use:** successful vs. failed tool calls from the traces.
 - **Open weights:** a county could self-host the same models (the kit lists open weights on Hugging Face), so residents' photos never leave its servers.
@@ -269,7 +306,7 @@ Don't claim Nemotron beats other models unless you measured it.
 
 The kit asks for a short explanation of what Nemotron is doing, why it matters, and how we maximize its capabilities. Paste this and fill in the brackets with measured numbers.
 
-> Every Photo Is a River Gauge is an always-on flood agent for Houston. Most flood deaths happen when drivers enter water of unknown depth, and official maps show where water is, not how deep. Nemotron 3.5 Super VL vets each resident photo (is it a flood, is it recent, is the location plausible) and reads where the waterline hits reference objects of known height to produce a depth range. Nemotron 3.5 Lightning orchestrates: it merges that estimate with a PyTorch CNN's second opinion, explains each pin in one line, and calls a routing tool that treats confirmed flooding as closed roads, re-planning when new pins land. Nemotron 3.5 Content Safety screens uploads before they reach the public map, and a dispatcher confirms every pin. We maximize Nemotron by grounding prompts in a reference-height table, splitting work between a fast tool-calling model and a vision model, and evaluating on \[N\] held-out photos: \[X\] cm error vs. \[Y\] cm for the CNN alone, at \[Z\] seconds per photo.
+> Every Photo Is a River Gauge is an always-on flood agent for Houston. Most flood deaths happen when drivers enter water of unknown depth, and official maps show where water is, not how deep. Nemotron 3.5 Super VL vets each resident photo (is it a flood, is it recent, is the location plausible) and reads where the waterline hits reference objects of known height to produce a depth range. Nemotron 3.5 Lightning orchestrates: it checks that estimate against objects boxed by a PyTorch detector, explains each pin in one line, and calls a routing tool that treats confirmed flooding as closed roads, re-planning when new pins land. Nemotron 3.5 Content Safety screens uploads before they reach the public map, and a dispatcher confirms every pin. We maximize Nemotron by grounding prompts in a reference-height table, splitting work between a fast tool-calling model and a vision model, and evaluating on \[N\] held-out photos: \[X\] cm error with grounding vs. \[Y\] cm without, at \[Z\] seconds per photo.
 
 ## Risks, ethics and open questions
 
@@ -312,3 +349,6 @@ Open questions:
 - [Human-centered flood mapping and intelligent routing](https://repository.library.noaa.gov/view/noaa/57328), Alizadeh et al., 2022
 - NVIDIA Nemotron Track – tidalBYTE Hack Developer Hack Kit (event PDF, November 2026): track challenge, five judging criteria, model guide, Brev and NVIDIA Build access
 - tidalBYTE '26 Opening Slides (event PDF, November 21, 2026): prompt, rubric, prizes, rules and schedule
+- [Ask 2: Can you get highway video for insurance purposes?](https://click2houston.com/traffic/2021/02/11/ask-2-can-you-get-highway-video-for-insurance-purposes), KPRC 2 (TranStar has about 1,000 freeway cameras)
+- [What will it take for Houston TranStar cameras to record?](https://www.click2houston.com/news/local/2024/05/15/what-will-it-take-for-houston-transtar-cameras-to-record), KPRC 2 (system does not record video or save images)
+- [Urban flood depth from traffic-camera images](https://link.springer.com/article/10.1007/s11269-023-03669-9), Water Resources Management, 2023
