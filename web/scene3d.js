@@ -15,10 +15,19 @@ const viewer = new Cesium.Viewer('cesium', {
   navigationHelpButton: false, timeline: false, animation: false, infoBox: false,
   selectionIndicator: false, fullscreenButton: false,
 });
-viewer.camera.setView({
-  destination: Cesium.Cartesian3.fromDegrees(-95.4455, 29.6772, 330),
-  orientation: { heading: Cesium.Math.toRadians(20), pitch: Cesium.Math.toRadians(-28), roll: 0 },
-});
+// Opening view: high over Meyerland. After the data loads we fly in to the deepest USGS gauge.
+const OVERVIEW = {
+  destination: Cesium.Cartesian3.fromDegrees(-95.4425, 29.668, 2400),
+  orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-55), roll: 0 },
+};
+viewer.camera.setView(OVERVIEW);
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Toggleable groups. The evidence edge is deliberately not toggleable (it marks where "unknown" starts).
+const layers = { water: [], roads: [], gauges: [] };
+for (const box of document.querySelectorAll('.toggles input[data-group]')) {
+  box.addEventListener('change', () => { for (const obj of layers[box.dataset.group]) obj.show = box.checked; });
+}
 
 // Low quantile of (3D-city height - lidar ground) at road points: trees and cars only push heights up.
 async function alignToLidar(samples) {
@@ -50,13 +59,13 @@ function addWater(features, offset) {
     normalMap: Cesium.buildModuleUrl('Assets/Textures/waterNormals.jpg'),
     frequency: 2500.0, animationSpeed: 0.008, amplitude: 4.0, specularIntensity: 0.6,
   } } });
-  viewer.scene.primitives.add(new Cesium.Primitive({ geometryInstances: instances('likely'),
-    appearance: new Cesium.EllipsoidSurfaceAppearance({ material: water, aboveGround: true, translucent: true }) }));
+  layers.water.push(viewer.scene.primitives.add(new Cesium.Primitive({ geometryInstances: instances('likely'),
+    appearance: new Cesium.EllipsoidSurfaceAppearance({ material: water, aboveGround: true, translucent: true }) })));
   const possible = instances('possible');
   if (possible.length) {
-    viewer.scene.primitives.add(new Cesium.Primitive({ geometryInstances: possible,
+    layers.water.push(viewer.scene.primitives.add(new Cesium.Primitive({ geometryInstances: possible,
       appearance: new Cesium.EllipsoidSurfaceAppearance({ aboveGround: true, translucent: true,
-        material: Cesium.Material.fromType('Color', { color: new Cesium.Color(0.58, 0.77, 0.99, 0.45) }) }) }));
+        material: Cesium.Material.fromType('Color', { color: new Cesium.Color(0.58, 0.77, 0.99, 0.45) }) }) })));
   }
 }
 
@@ -68,14 +77,14 @@ function addGauges(pins, offset) {
     const usgs = p.kind === 'usgs_measured';
     const base = p.ground_m + offset;
     const top = base + p.depth_m_low;
-    viewer.entities.add({
+    layers.gauges.push(viewer.entities.add({
       info: p,
       polyline: { positions: Cesium.Cartesian3.fromDegreesArrayHeights([lon, lat, base, lon, lat, top + 0.6]),
         width: 7, material: new Cesium.PolylineOutlineMaterialProperty({
           color: usgs ? Cesium.Color.fromCssColorString('#facc15') : Cesium.Color.fromCssColorString('#a78bfa'),
           outlineColor: Cesium.Color.BLACK, outlineWidth: 2 }) },
-    });
-    viewer.entities.add({
+    }));
+    layers.gauges.push(viewer.entities.add({
       info: p,
       position: Cesium.Cartesian3.fromDegrees(lon, lat, top + 0.6),
       point: { pixelSize: 11, color: usgs ? Cesium.Color.fromCssColorString('#111827') : Cesium.Color.WHITE,
@@ -83,8 +92,25 @@ function addGauges(pins, offset) {
       label: { text: `${p.depth_m_low.toFixed(2)} m`, font: 'bold 15px system-ui', fillColor: Cesium.Color.WHITE,
         outlineColor: Cesium.Color.BLACK, outlineWidth: 4, style: Cesium.LabelStyle.FILL_AND_OUTLINE,
         pixelOffset: new Cesium.Cartesian2(0, -18), disableDepthTestDistance: Number.POSITIVE_INFINITY },
-    });
+    }));
   }
+}
+
+// Slow fly-in that ends on the deepest USGS gauge and opens its details.
+function deepestGauge(pins) {
+  return pins.filter((f) => f.properties.kind === 'usgs_measured' && f.properties.depth_m_low !== null
+    && f.properties.ground_m !== null).sort((a, b) => b.properties.depth_m_low - a.properties.depth_m_low)[0];
+}
+function flyToGauge(f, offset) {
+  if (!f) return;
+  const p = f.properties;
+  const [lon, lat] = f.geometry.coordinates;
+  const target = Cesium.Cartesian3.fromDegrees(lon, lat, p.ground_m + offset + p.depth_m_low);
+  viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(target, 15), {
+    offset: new Cesium.HeadingPitchRange(Cesium.Math.toRadians(20), Cesium.Math.toRadians(-22), 260),
+    duration: reduceMotion ? 0 : 9,
+    complete: () => showPanel(p),
+  });
 }
 
 function addRoads(roads) {
@@ -95,9 +121,9 @@ function addRoads(roads) {
   for (const f of roads.features) {
     const material = style[f.properties.status];
     if (!material) continue;
-    viewer.entities.add({ info: { ...f.properties, isRoad: true }, polyline: {
+    layers.roads.push(viewer.entities.add({ info: { ...f.properties, isRoad: true }, polyline: {
       positions: Cesium.Cartesian3.fromDegreesArray(f.geometry.coordinates.flat()),
-      clampToGround: true, width: 5, material } });
+      clampToGround: true, width: 5, material } }));
   }
 }
 
@@ -160,6 +186,13 @@ new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas).setInputAction((click) =
     addEvidenceEdge(unknown);
     addRoads(roads);
     addGauges(pins.features, offset);
+    const deepest = deepestGauge(pins.features);
+    flyToGauge(deepest, offset);
+    document.getElementById('replay-fly').addEventListener('click', () => {
+      document.getElementById('panel').hidden = true;
+      viewer.camera.setView(OVERVIEW);
+      flyToGauge(deepest, offset);
+    });
   } catch (e) {
     console.error('[flood3d]', e);
     statusEl.textContent = `Could not load the 3D scene: ${e.message}`;

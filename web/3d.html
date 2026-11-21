@@ -26,7 +26,14 @@
     <a href="index.html">2D map</a>
   </header>
 
-  <aside id="legend" aria-label="Legend">
+  <aside id="legend" aria-label="Legend and layers">
+    <fieldset class="toggles">
+      <legend>Show</legend>
+      <label><input type="checkbox" data-group="water" checked> Water</label>
+      <label><input type="checkbox" data-group="roads" checked> Roads</label>
+      <label><input type="checkbox" data-group="gauges" checked> Gauges</label>
+    </fieldset>
+    <div class="controls"><button id="replay-fly" type="button">Replay fly-in</button></div>
     <h2>Water (estimated)</h2>
     <div class="row"><i class="sw water"></i><span>Likely flooded: water drawn at its estimated peak level</span></div>
     <div class="row"><i class="sw possible-3d"></i><span>Possibly flooded</span></div>
