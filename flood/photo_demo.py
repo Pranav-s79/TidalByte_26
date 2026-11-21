@@ -25,7 +25,7 @@ def analyze():
     obs = read_photo(str(PHOTO), 29.749967, -95.523117, "2017-08-27T15:45:33Z", detector=detect)
     if (obs["error"] or "").startswith("model call failed"):
         raise RuntimeError("The model request failed. Check the server key or retry.")
-    if obs["error"] and not obs["error"].startswith("Nemotron read "):
+    if obs["error"] and not any(r["reasoning"] for r in obs.get("readings") or [obs]):  # a disagreement is shown, not hidden
         raise RuntimeError("The model returned an unreadable result. Retry the reading.")
     obs["photo"] = PHOTO.name
     det = obs.get("detector") or {}

@@ -1,6 +1,7 @@
 """Nemotron VL reads one flood photo into an observation (spec: data/observations.json)."""
 import argparse
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import mimetypes
@@ -16,24 +17,30 @@ REF_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "reference_heig
 CONFIDENCE = {"low", "medium", "high"}
 OBSTACLE_TYPES = {"stalled_vehicle", "debris", "downed_tree", "barricade", "other"}
 REVIEWED = {"confirmed", "rejected"}  # a person decided; re-running the reader never replaces these
+READS = 3  # reads of each photo, run at the same time; they must agree or it goes to review (NEMOTRON_VL_READS)
 
 PROMPT = """You inspect one street photo for flood water. Reply with ONE JSON object and nothing else:
 {{"water_visible": true|false,
- "reference_object": "<object of known height that the waterline touches>" or null,
- "depth_m_low": number or null, "depth_m_high": number or null,
+ "reference_object": "<a name copied exactly from the table below>" or null,
+ "fraction_low": number or null, "fraction_high": number or null,
  "obstacles": [{{"type": "stalled_vehicle|debris|downed_tree|barricade|other", "note": "<short>"}}],
  "confidence": "low|medium|high",
- "reasoning": "<one or two sentences: what you saw and how you got the depth>"}}
+ "reasoning": "<one or two sentences: what you saw and where the waterline sits on the reference object>"}}
 Rules:
-- Estimate depth ONLY from where the waterline meets an object in this table of known heights:
+- Each row of this table is a point on an object and its height above the ground:
 {table}
-- If no such object touches the waterline, set reference_object, depth_m_low and depth_m_high to null.
+- Pick the row whose object the waterline touches. fraction_low and fraction_high say how far the water reaches
+  from the ground (0) up to that point (1): water a third of the way up to the top of a tire is about 0.3-0.4.
+  Code turns the fraction into a depth, so do not give a depth yourself.
+- If the waterline touches no object in the table, or is above every point you can see, set reference_object,
+  fraction_low and fraction_high to null.
 - Give a range, never a single number. Do not guess the location. List only obstacles that block a road.
 - Never write out license plates or describe people's faces."""
 
 
 def _empty(error):
-    return {"water_visible": False, "reference_object": None, "depth_m_low": None, "depth_m_high": None,
+    return {"water_visible": False, "reference_object": None, "fraction_low": None, "fraction_high": None,
+            "depth_m_low": None, "depth_m_high": None,
             "obstacles": [], "confidence": "low", "reasoning": "", "status": "needs_review", "error": error}
 
 
@@ -58,19 +65,25 @@ def _obstacle(o):
     return {"type": "other", "note": f"{kind}: {note}" if note else kind}  # keep what the model saw
 
 
-def parse_reading(raw):
+def _table(heights=None):
+    return heights if heights is not None else json.load(open(REF_PATH))
+
+
+def parse_reading(raw, heights=None):
+    """Model reply -> reading. The model says how far up a reference object the water reaches (a fraction of
+    that object's height in the table); code multiplies, so the arithmetic is never the model's."""
     d = _extract_json(raw)
     if d is None:
         return _empty("no JSON object in model output")
     try:
         ref = d.get("reference_object")
-        lo, hi = (None, None) if ref is None else (d.get("depth_m_low"), d.get("depth_m_high"))
+        lo, hi = (None, None) if ref is None else (d.get("fraction_low"), d.get("fraction_high"))
         if (lo is None) != (hi is None):
-            raise ValueError("depth range has only one end")
+            raise ValueError("fraction range has only one end")
         if lo is not None:
             lo, hi = float(lo), float(hi)
-            if not 0 <= lo <= hi:
-                raise ValueError(f"bad depth range {lo}..{hi}")
+            if not 0 <= lo <= hi <= 1:
+                raise ValueError(f"bad fraction range {lo}..{hi}")
         if not isinstance(d.get("water_visible"), bool):
             raise ValueError("water_visible is not true/false")
         if d.get("confidence") not in CONFIDENCE:
@@ -78,9 +91,53 @@ def parse_reading(raw):
         obstacles = [_obstacle(o) for o in d.get("obstacles") or []]
     except (ValueError, TypeError, AttributeError) as e:  # JSONDecodeError is a ValueError
         return _empty(str(e))
-    return {"water_visible": d["water_visible"], "reference_object": ref, "depth_m_low": lo, "depth_m_high": hi,
-            "obstacles": obstacles, "confidence": d["confidence"], "reasoning": str(d.get("reasoning", "")),
-            "status": "ai_proposed", "error": None}
+    reading = {"water_visible": d["water_visible"], "reference_object": ref, "fraction_low": lo, "fraction_high": hi,
+               "depth_m_low": None, "depth_m_high": None, "obstacles": obstacles, "confidence": d["confidence"],
+               "reasoning": str(d.get("reasoning", "")), "status": "ai_proposed", "error": None}
+    if lo is None:
+        return reading
+    row = next((r for r in _table(heights) if r["name"].strip().lower() == str(ref).strip().lower()), None)
+    if row is None:
+        return {**reading, "status": "needs_review", "error": f"reference '{ref}' is not in the height table"}
+    return {**reading, "depth_m_low": round(lo * row["height_m_low"], 2), "depth_m_high": round(hi * row["height_m_high"], 2)}
+
+
+def _span(r):
+    return f"{r['depth_m_low']}-{r['depth_m_high']} m" if r["depth_m_low"] is not None else "no depth"
+
+
+def combine(reads):
+    """Several reads of one photo -> one reading, with every read kept under "readings".
+
+    They agree when every read came back clean, all say the same about water, and either none has a depth or all
+    do and their ranges share at least one depth. The depth is then the envelope (lowest low to highest high).
+    Otherwise the photo goes to review with no depth: a lucky read never passes as a measurement.
+    """
+    if len(reads) == 1:
+        return reads[0]
+    first = reads[0]
+    if all((r["error"] or "").startswith("model call failed") for r in reads):
+        return {**first, "readings": reads}
+    refs = list(dict.fromkeys(r["reference_object"] for r in reads if r["reference_object"]))
+    out = {**first, "readings": reads, "reference_object": " / ".join(refs) or None,
+           "confidence": min((r["confidence"] for r in reads), key=["low", "medium", "high"].index),
+           "obstacles": [dict(t) for t in dict.fromkeys(tuple(o.items()) for r in reads for o in r["obstacles"])]}
+    lows, highs = [r["depth_m_low"] for r in reads], [r["depth_m_high"] for r in reads]
+    problems = [r["error"] for r in reads if r["status"] != "ai_proposed"]
+    if problems:
+        why = f"{len(problems)} of {len(reads)} reads went to review: " + "; ".join(dict.fromkeys(problems))
+    elif (len({r["water_visible"] for r in reads}) > 1 or (None in lows and any(v is not None for v in lows))
+          or (None not in lows and max(lows) > min(highs))):
+        why = f"{len(reads)} reads disagree: " + ", ".join(_span(r) for r in reads)
+    elif None in lows:
+        return out
+    else:
+        same_ref = len(refs) == 1
+        return {**out, "depth_m_low": min(lows), "depth_m_high": max(highs),
+                "fraction_low": min(r["fraction_low"] for r in reads) if same_ref else None,
+                "fraction_high": max(r["fraction_high"] for r in reads) if same_ref else None}
+    return {**out, "status": "needs_review", "error": why,
+            "depth_m_low": None, "depth_m_high": None, "fraction_low": None, "fraction_high": None}
 
 
 def _box(box):
@@ -108,7 +165,7 @@ def _messages(photo_bytes, photo_path, objects=None, crops=None, baseline=None, 
     heights: the camera's reference heights (from data/cameras.json); default data/reference_heights.json.
     baseline: (bytes, mime) of the same camera's dry frame.
     """
-    rows = heights if heights is not None else json.load(open(REF_PATH))
+    rows = _table(heights)
     table = "\n".join(f"  - {r['name']}: {r['height_m_low']}-{r['height_m_high']} m" for r in rows)
     text = PROMPT.format(table=table) + _detector_note(objects) + extra  # extra: e.g. camera-frame rules
     if baseline is not None or crops:
@@ -185,12 +242,14 @@ CROP_ROOT = os.path.join("cache", "crops")  # gitignored; one folder of crops pe
 
 
 def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, baseline_path=None, heights=None,
-               extra_prompt=""):
+               extra_prompt="", reads=None):
     """One frame in, one observation out.
 
     detector(path, crop_dir) -> (detections, crops), e.g. flood.detect.detect. baseline_path is the same
-    camera's dry frame; heights is that camera's reference-height table.
+    camera's dry frame; heights is that camera's reference-height table. reads: how many times Nemotron reads
+    the frame, all at once (default NEMOTRON_VL_READS or 3); see combine().
     """
+    reads = reads or int(os.environ.get("NEMOTRON_VL_READS", READS))
     if lat is None or lon is None:
         raise ValueError("photo has no location: rejected (never guess one)")
     data = open(photo_path, "rb").read()
@@ -206,11 +265,17 @@ def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, 
             det = {"model": name, "objects": objects, "crops": [c.get("path") for c in crops]}
         except Exception as e:  # the detector is a second opinion; Nemotron still reads the photo without it
             det = {"model": name, "objects": None, "crops": [], "error": f"detector failed: {e}"}
-    try:
-        messages = _messages(data, photo_path, objects, crops, baseline, heights, extra_prompt)
-        reading = cross_check(parse_reading(client(messages)), objects)
-    except Exception as e:  # network/auth/endpoint failure must not crash the pipeline
-        reading = _empty(f"model call failed: {e}")
+    rows = _table(heights)
+    messages = _messages(data, photo_path, objects, crops, baseline, rows, extra_prompt)
+
+    def one_read(_):
+        try:
+            return cross_check(parse_reading(client(messages), rows), objects)
+        except Exception as e:  # network/auth/endpoint failure must not crash the pipeline
+            return _empty(f"model call failed: {e}")
+
+    with ThreadPoolExecutor(reads) as pool:  # at the same time: three reads take about as long as one
+        reading = combine(list(pool.map(one_read, range(reads))))
     return {"id": obs_id, "lat": lat, "lon": lon, "taken_at": taken_at,
             "photo": photo_path, **reading, "detector": det,
             "model": os.environ.get("NEMOTRON_VL_MODEL", DEFAULT_MODEL)}

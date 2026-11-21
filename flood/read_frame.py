@@ -40,7 +40,7 @@ IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif"}
 
 FRAME_RULES = """
 This is a frame from a fixed traffic camera.{baseline}
-- Read the depth only where the water meets a reference object from the table that you can see in both images. If there is none, set reference_object and both depths to null.
+- Read the depth only where the water meets a reference object from the table that you can see in both images. If there is none, set reference_object and both fractions to null.
 - Also include "frame_issues": a list of any of "night", "glare", "rain_on_lens", "blurry", "obstructed", "camera_moved" (the view no longer matches the dry baseline: turned, tilted or zoomed). Use [] if the frame is fine."""
 WITH_BASELINE = " The second image is the same camera's dry baseline, with no flood. Compare the two."
 NO_BASELINE = " There is no dry baseline for this camera, so read the frame on its own."
@@ -135,7 +135,7 @@ def read_frame(frame_path, cam, taken_at, client=rp.post_chat, detector=None, ba
         extra = FRAME_RULES.format(baseline=WITH_BASELINE if baseline_path else NO_BASELINE)
         obs = rp.read_photo(frame_path, lat, lon, taken_at, client=remember, detector=detector,
                             baseline_path=baseline_path, heights=cam.get("reference_heights"), extra_prompt=extra)
-        issues |= model_issues(replies[-1] if replies else None)
+        issues |= set().union(*map(model_issues, replies))  # an issue any read reports counts
     obs = apply_frame_rules(obs, issues)
     return {**obs, "camera_id": cam["id"], "frame_issues": sorted(issues), "frame_checks": checks,
             "baseline": baseline_path}

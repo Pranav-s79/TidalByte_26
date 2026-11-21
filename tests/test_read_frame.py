@@ -10,9 +10,9 @@ from flood import read_frame as rf
 
 CAM = {"id": "cam-7", "lat": 29.686, "lon": -95.444,
        "reference_heights": [{"name": "jersey barrier, top", "height_m_low": 0.8, "height_m_high": 0.84, "source": "x"}]}
-DRY = ('{"water_visible": false, "reference_object": null, "depth_m_low": null, "depth_m_high": null, '
+DRY = ('{"water_visible": false, "reference_object": null, "fraction_low": null, "fraction_high": null, '
        '"obstacles": [], "confidence": "high", "reasoning": "dry road, same as baseline", "frame_issues": []}')
-WET = ('{"water_visible": true, "reference_object": "jersey barrier, top", "depth_m_low": 0.2, "depth_m_high": 0.3, '
+WET = ('{"water_visible": true, "reference_object": "jersey barrier, top", "fraction_low": 0.25, "fraction_high": 0.36, '
        '"obstacles": [], "confidence": "medium", "reasoning": "water a quarter up the barrier", "frame_issues": %s}')
 
 

@@ -6,14 +6,15 @@ import pytest
 import flood.read_photo as rp
 from flood.read_photo import parse_reading, read_photo, save_observation
 
-VALID = ('{"water_visible": true, "reference_object": "sedan tire", "depth_m_low": 0.35, '
-         '"depth_m_high": 0.55, "obstacles": [{"type": "stalled_vehicle", "note": "car in lane"}], '
+TIRE = "passenger car or small SUV tire, top of tire"  # 0.60-0.72 m in data/reference_heights.json
+VALID = ('{"water_visible": true, "reference_object": "' + TIRE + '", "fraction_low": 0.5, '
+         '"fraction_high": 0.75, "obstacles": [{"type": "stalled_vehicle", "note": "car in lane"}], '
          '"confidence": "medium", "reasoning": "water at top of tire"}')
 
 
 def test_parse_valid_reading():
     r = parse_reading("Here you go:\n" + VALID)
-    assert r["status"] == "ai_proposed" and r["depth_m_low"] == 0.35 and r["error"] is None
+    assert r["status"] == "ai_proposed" and (r["depth_m_low"], r["depth_m_high"]) == (0.3, 0.54) and r["error"] is None
 
 
 def test_parse_fenced_json():
@@ -26,12 +27,12 @@ def test_parse_garbage_needs_review():
 
 
 def test_no_reference_object_forces_null_depth():
-    r = parse_reading(VALID.replace('"sedan tire"', "null"))
+    r = parse_reading(VALID.replace('"' + TIRE + '"', "null"))
     assert r["depth_m_low"] is None and r["depth_m_high"] is None and r["status"] == "ai_proposed"
 
 
 def test_low_above_high_needs_review():
-    assert parse_reading(VALID.replace("0.35", "0.9"))["status"] == "needs_review"
+    assert parse_reading(VALID.replace("0.5,", "0.9,"))["status"] == "needs_review"
 
 
 def test_bad_confidence_needs_review():
@@ -190,12 +191,12 @@ def test_depth_against_a_detected_vehicle_stands(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
     o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID,
                    detector=lambda path, crop_dir: ([CAR], []))
-    assert o["status"] == "ai_proposed" and o["depth_m_low"] == 0.35 and o["detector"]["objects"] == [CAR]
+    assert o["status"] == "ai_proposed" and o["depth_m_low"] == 0.3 and o["detector"]["objects"] == [CAR]
 
 
 def test_curb_reading_has_nothing_to_cross_check(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
-    curb = VALID.replace('"sedan tire"', '"street curb, top of curb face"')
+    curb = VALID.replace(TIRE, "street curb, top of curb face")
     o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: curb,
                    detector=lambda path, crop_dir: ([], []))
     assert o["status"] == "ai_proposed"
@@ -209,3 +210,86 @@ def test_detector_failure_still_reads_the_photo(tmp_path):
 
     o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID, detector=broken)
     assert o["status"] == "ai_proposed" and "detector failed" in o["detector"]["error"]
+
+
+# --- Improvement 1: the model gives a fraction of a reference height; code turns it into a depth ---
+
+def test_a_third_of_the_tire_is_20_to_24_cm():
+    r = parse_reading(VALID.replace("0.5,", "0.333,").replace("0.75,", "0.333,"))
+    assert (r["depth_m_low"], r["depth_m_high"]) == (0.2, 0.24) and (r["fraction_low"], r["fraction_high"]) == (0.333, 0.333)
+
+
+def test_reference_not_in_the_table_needs_review():
+    r = parse_reading(VALID.replace(TIRE, "sedan tire"))
+    assert r["status"] == "needs_review" and r["depth_m_low"] is None and "not in the height table" in r["error"]
+
+
+def test_fraction_above_one_needs_review():
+    assert parse_reading(VALID.replace("0.75,", "1.4,"))["status"] == "needs_review"
+
+
+def test_camera_table_is_used_for_the_depth():
+    heights = [{"name": "jersey barrier, top", "height_m_low": 0.8, "height_m_high": 0.84}]
+    r = parse_reading(VALID.replace(TIRE, "Jersey barrier, top"), heights)
+    assert (r["depth_m_low"], r["depth_m_high"]) == (0.4, 0.63)
+
+
+# --- Improvement 2: three reads at once; they must agree or the photo goes to review ---
+
+def replies(*texts):
+    it = iter(texts)
+    return lambda m: next(it)
+
+
+def frac(lo, hi):
+    return VALID.replace("0.5,", f"{lo},").replace("0.75,", f"{hi},")
+
+
+def test_agreeing_reads_give_the_envelope(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(frac(0.3, 0.4), frac(0.35, 0.5), frac(0.38, 0.45)))
+    assert o["status"] == "ai_proposed" and len(o["readings"]) == 3
+    assert (o["depth_m_low"], o["depth_m_high"]) == (0.18, 0.36) and (o["fraction_low"], o["fraction_high"]) == (0.3, 0.5)
+
+
+def test_reads_whose_ranges_do_not_meet_go_to_review(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(frac(0.3, 0.4), frac(0.3, 0.4), frac(0.8, 1)))
+    assert o["status"] == "needs_review" and o["depth_m_low"] is None and "disagree" in o["error"]
+    assert sorted(r["depth_m_low"] for r in o["readings"]) == [0.18, 0.18, 0.48]  # every read kept for the reviewer
+
+
+def test_depth_in_some_reads_but_not_others_goes_to_review(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(VALID, VALID, VALID.replace('"' + TIRE + '"', "null")))
+    assert o["status"] == "needs_review" and "disagree" in o["error"]
+
+
+def test_one_failed_read_sends_the_photo_to_review(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    calls = iter([VALID, VALID, None])
+
+    def flaky(m):
+        reply = next(calls)
+        if reply is None:
+            raise RuntimeError("503")
+        return reply
+
+    o = read_photo(str(p), 29.68, -95.44, "t", client=flaky)
+    assert o["status"] == "needs_review" and "1 of 3 reads" in o["error"] and o["depth_m_low"] is None
+
+
+def test_reads_run_at_the_same_time(tmp_path):
+    import threading
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    barrier = threading.Barrier(3, timeout=5)  # sequential reads would never all reach it
+    o = read_photo(str(p), 29.68, -95.44, "t", client=lambda m: barrier.wait() * 0 or VALID)
+    assert o["status"] == "ai_proposed"
+
+
+def test_one_read_when_asked(tmp_path, monkeypatch):
+    monkeypatch.setenv("NEMOTRON_VL_READS", "1")
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    sent = []
+    o = read_photo(str(p), 29.68, -95.44, "t", client=lambda m: sent.append(m) or VALID)
+    assert len(sent) == 1 and "readings" not in o
