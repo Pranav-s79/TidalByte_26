@@ -53,3 +53,18 @@ python -m flood.inundation --fetch     # downloads the USACE extent to data/raw/
 python web/tools/make_basemap.py       # dark hillshade basemap for the analysis view (web/assets/basemap.png)
 pytest tests/test_inundation.py
 ```
+
+## Rendering notes (3D command center)
+
+What caused the grainy, cluttered look and what replaced it:
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Soft, grainy city on laptop screens | Cesium rendered at CSS pixels and the browser upscaled (`useBrowserRecommendedResolution`) | Render at device pixel density, capped at 2x; MSAA x4 kept |
+| Blocky blue patches, painted-on water | Five separately coloured meshes, one per depth band, uniform alpha, hard edges | One water surface with depth per vertex; a small custom appearance on Cesium's Water material sets colour and opacity from depth, fades the shoreline, calms ripples with distance and adds a grazing-angle sheen |
+| Cyan lines on every street | Every road drawn as a 3D overlay | Ordinary streets baked quietly into the basemap; the flooded-road overlay is opt-in ("Road impact") |
+| Grid, striped ring, hard rectangle | Grid and stripes drawn over the scene; terrain dropped to a flat plane at the box edge | No grid or stripes; terrain eases out over 450 m; basemap fades to transparent at its edges; a thin dashed line marks the analysis edge |
+| Buildings melting into the water | Same navy as the water, low light | Neutral slate palette, higher key light, soft shadows cast onto the terrain (cast-only: receiving them produced shadow acne on roofs) |
+| Photorealistic tiles | Default 16 px screen-space error; whole city casting shadows | Error 10 px; no shadows from the tileset |
+
+`python web/tools/make_basemap.py` rebuilds the basemap (hillshade, water, parks, streets, faded edges).

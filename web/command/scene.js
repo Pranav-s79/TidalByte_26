@@ -64,6 +64,10 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     skyBox: false, skyAtmosphere: false, contextOptions: { webgl: { alpha: true } },
   });
   const scene = viewer.scene;
+  // Render at the display's real pixel density (capped at 2x). Cesium's default renders at CSS pixels
+  // and lets the browser upscale, which is what made the city look soft and grainy on laptop screens.
+  viewer.useBrowserRecommendedResolution = false;
+  viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2);
   scene.backgroundColor = Cesium.Color.TRANSPARENT; // CSS gradient shows through as the night sky
   scene.globe.baseColor = C('#0a1220');
   scene.globe.showGroundAtmosphere = false;
@@ -118,10 +122,17 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
 
   // Soft key light from the south-west so building faces read in 3D.
   const enu = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(...CENTER));
-  const local = Cesium.Cartesian3.normalize(new Cesium.Cartesian3(0.5, 0.6, -0.62), new Cesium.Cartesian3());
+  const local = Cesium.Cartesian3.normalize(new Cesium.Cartesian3(0.38, 0.5, -0.78), new Cesium.Cartesian3());
   const dir = Cesium.Matrix4.multiplyByPointAsVector(enu, local, new Cesium.Cartesian3());
-  scene.light = new Cesium.DirectionalLight({ direction: Cesium.Cartesian3.normalize(dir, dir), intensity: 2.4,
-    color: C('#d6e4ff') });
+  scene.light = new Cesium.DirectionalLight({ direction: Cesium.Cartesian3.normalize(dir, dir), intensity: 2.9,
+    color: C('#e4ecff') });
+  // Soft shadows from that key light give buildings weight on the terrain. One 2048 map, cascades off.
+  viewer.shadows = true;
+  scene.shadowMap.softShadows = true;
+  scene.shadowMap.size = 2048;
+  scene.shadowMap.darkness = 0.55;
+  scene.shadowMap.maximumDistance = 4000;
+  scene.globe.shadows = Cesium.ShadowMode.RECEIVE_ONLY;
 
   // Keep status colours crisp. Bloom makes dense road networks harder to distinguish.
   const bloom = scene.postProcessStages.bloom;
@@ -219,24 +230,12 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
       const layer = viewer.imageryLayers.addImageryProvider(img);
       layer.brightness = 1.15;
     } catch (e) { console.warn('[scene] basemap image unavailable', e); }
-    // Outside the analysis box: striped "Unknown: no data" ring, plus a dashed edge on the ground.
+    // Outside the analysis box there is no data: the basemap fades into the night there and a thin
+    // dashed line marks the edge ("Unknown: no data"), so nothing outside reads as dry ground.
     const [w, s, e, n] = bbox;
-    const pad = 0.012;
-    const ring = (x0, y0, x1, y1) => Cesium.Cartesian3.fromDegreesArray([x0, y0, x1, y0, x1, y1, x0, y1]);
-    const stripes = scene.primitives.add(new Cesium.Primitive({
-      asynchronous: true,
-      geometryInstances: new Cesium.GeometryInstance({
-        geometry: new Cesium.PolygonGeometry({
-          polygonHierarchy: new Cesium.PolygonHierarchy(ring(w - pad, s - pad, e + pad, n + pad), [new Cesium.PolygonHierarchy(ring(w, s, e, n))]),
-          height: g.baseGround + 0.05, stRotation: Math.PI / 4, vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT }),
-        id: { kind: 'unknown', props: { status: 'unknown' } },
-      }),
-      appearance: new Cesium.EllipsoidSurfaceAppearance({ aboveGround: true, translucent: true,
-        material: Cesium.Material.fromType('Stripe', { evenColor: C('#94a3b8', 0.12), oddColor: C('#05080f', 0.35), repeat: 120 }) }),
-    }));
-    layers.unknown.push({ prim: stripes });
     const edge = viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray([w, s, e, s, e, n, w, n, w, s]),
-      clampToGround: true, width: 2, material: new Cesium.PolylineDashMaterialProperty({ color: C('#cbd5e1', 0.6), dashLength: 18 }) } });
+      clampToGround: true, width: 1.4, material: new Cesium.PolylineDashMaterialProperty({ color: C('#94a3b8', 0.45), gapColor: Cesium.Color.TRANSPARENT, dashLength: 14 }) } });
+    edge.cc = { kind: 'unknown', props: { status: 'unknown' } };
     layers.unknown.push({ entity: edge });
   }
 
@@ -255,8 +254,8 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
 
   // ---------------------------------------------------------------- buildings
   async function addBuildings(data) {
-    const shades = ['#2c3b56', '#30405c', '#283651', '#33435f', '#2a3955'].map((c) => C(c));
-    const tall = C('#3c4e6d');
+    const shades = (grid ? ['#3d4554', '#434b5a', '#394150', '#47505f', '#3f4756'] : ['#2c3b56', '#30405c', '#283651', '#33435f', '#2a3955']).map((c) => C(c));
+    const tall = C(grid ? '#555f70' : '#3c4e6d');
     const instances = [];
     data.buildings.forEach(([h, , ring], i) => {
       if (ring.length < 6) return;
@@ -276,6 +275,8 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     });
     const prim = scene.primitives.add(new Cesium.Primitive({
       geometryInstances: instances, allowPicking: false, asynchronous: true,
+      // cast onto the terrain only: buildings receiving their own shadows produced acne (dotted roofs)
+      shadows: grid ? Cesium.ShadowMode.CAST_ONLY : Cesium.ShadowMode.DISABLED,
       appearance: new Cesium.PerInstanceColorAppearance({ translucent: false, closed: true }),
     }));
     layers.buildings.push({ prim });
@@ -376,13 +377,17 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   function addRoads(fc) {
     const groups = {};
     for (const f of fc.features) (groups[roadTier(f.properties)] ||= []).push(f);
-    for (const tier of ['unknown', 'none', 'possible', 'bridge', 'likely']) {
+    const tiers = grid ? ['possible', 'bridge', 'likely'] : ['unknown', 'none', 'possible', 'bridge', 'likely'];
+    for (const tier of tiers) {
       const feats = groups[tier];
       if (!feats || !feats.length) continue;
       // On the terrain model the water carries the story: flooded roads are thinner and quieter.
-      const style = grid && tier === 'likely'
-        ? { width: 2.2, alpha: 0.6, mat: () => Cesium.Material.fromType('Color', { color: C(COLORS.cyan, 0.6) }) }
-        : ROAD_STYLE[tier];
+      const calm = {
+        likely: { width: 2.4, alpha: 0.85, mat: () => Cesium.Material.fromType('Color', { color: C('#5eead4', 0.85) }) },
+        possible: { width: 2, alpha: 0.7, mat: () => Cesium.Material.fromType('Color', { color: C(COLORS.amber, 0.7) }) },
+        bridge: { width: 2.2, alpha: 0.75, mat: () => Cesium.Material.fromType('Color', { color: C('#e2b45c', 0.75) }) },
+      };
+      const style = grid ? calm[tier] : ROAD_STYLE[tier];
       const mat = style.mat();
       const prim = scene.primitives.add(new Cesium.Primitive({
         asynchronous: true,
@@ -440,8 +445,8 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     const sub = usgs ? 'USGS · OBSERVED' : { confirmed: 'AI · CONFIRMED', rejected: 'AI · REJECTED' }[tier] || 'AI · AWAITING REVIEW';
     const label = viewer.entities.add({
       position: top(1), show: false,
-      label: { text: head, font: '600 15px Inter, system-ui, sans-serif', fillColor: C('#f8fafc'),
-        showBackground: true, backgroundColor: C('#060c18', 0.86), backgroundPadding: new Cesium.Cartesian2(9, 6),
+      label: { text: head, font: '600 13px Inter, system-ui, sans-serif', fillColor: C('#f8fafc'),
+        showBackground: true, backgroundColor: C('#060c18', 0.82), backgroundPadding: new Cesium.Cartesian2(7, 4),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -22),
         scaleByDistance: LABEL_SCALE, pixelOffsetScaleByDistance: LABEL_SCALE,
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2800),
@@ -453,7 +458,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
         showBackground: true, backgroundColor: C('#060c18', 0.86), backgroundPadding: new Cesium.Cartesian2(7, 4),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -2),
         scaleByDistance: LABEL_SCALE, pixelOffsetScaleByDistance: LABEL_SCALE,
-        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2200), // declutter the overview
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 900), // only when close
         disableDepthTestDistance: Number.POSITIVE_INFINITY },
     });
     const ents = [ring, stalk, label, subLabel, waterline].filter(Boolean);
@@ -605,8 +610,11 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   const dur = (s) => (reduceMotion() ? 0 : s);
   const headingDeg = () => Cesium.Math.toDegrees(viewer.camera.heading);
   function flyOverview({ duration = 2.4 } = {}) {
-    viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(...CENTER, groundH(...CENTER)), 1500), {
-      offset: new Cesium.HeadingPitchRange(Cesium.Math.toRadians(14), Cesium.Math.toRadians(-36), 3900),
+    const focus = grid ? [-95.4445, 29.6868] : CENTER;
+    viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(...focus, groundH(...focus)), 1200), {
+      offset: grid
+        ? new Cesium.HeadingPitchRange(Cesium.Math.toRadians(22), Cesium.Math.toRadians(-30), 2700)
+        : new Cesium.HeadingPitchRange(Cesium.Math.toRadians(14), Cesium.Math.toRadians(-36), 3900),
       duration: dur(duration), easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT });
   }
   function flyToPoint(lon, lat, { range = 260, pitch = -24, duration = 2.2, height = 2 } = {}) {

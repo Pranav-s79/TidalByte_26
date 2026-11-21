@@ -77,6 +77,10 @@ export async function createPhotorealisticLayer(viewer, data, token) {
 
   Cesium.Ion.defaultAccessToken = token;
   const tiles = await Cesium.createGooglePhotorealistic3DTileset();
+  // Sharper tiles than the default 16 px error, and no shadow casting from the whole city mesh
+  // (expensive and the main source of shadow flicker); our own overlays carry the depth cues.
+  tiles.maximumScreenSpaceError = 10;
+  tiles.shadows = Cesium.ShadowMode.DISABLED;
   viewer.scene.primitives.add(tiles);
   const alignment = await Promise.race([
     alignToLidar(viewer, data.samples, tiles),
@@ -92,7 +96,7 @@ export async function createPhotorealisticLayer(viewer, data, token) {
   // NAVD88 to the 3D city's ellipsoid heights by the measured offset. Falls back to the old surfaces.
   let waterLevels = null;
   if (data.grid) {
-    waterLevels = createWaterLevels(viewer, data.grid, { heightOffset: offset });
+    waterLevels = createWaterLevels(viewer, data.grid, { heightOffset: offset, palette: 'photo' });
     groups.water.push(waterLevels);
   }
   const waterByStatus = new Map();

@@ -269,6 +269,8 @@ function deriveRoads(fc, grid) {
       if (core.roads) {
         state.data.roads = deriveRoads(core.roads, state.grid);
         scene.addRoads(state.data.roads);
+        // Ordinary streets are in the basemap; the flooded-road overlay is opt-in ("Road impact").
+        setLayer('roads', false, false);
       }
       renderLists();
       ui.loaderStep('layers', 'done', `Terrain flood model · ${state.grid.header.cell_m} m grid`);

@@ -1,9 +1,11 @@
 """Bake the dark terrain basemap for the 3D command center (web lane, one-off).
 
 Writes web/assets/basemap.png: a lon/lat-aligned image of the replay box with
-- lidar hillshade, tinted darker/bluer in low ground (so low-lying areas read at a glance),
-- OSM water areas, Brays Bayou and other waterways, parks,
-- a faint 100 m survey grid.
+- lidar hillshade, tinted slightly bluer in low ground (low-lying areas read at a glance),
+- OSM water areas, waterways and parks,
+- every OSM road as a quiet, anti-aliased line (major roads a little stronger), so ordinary
+  streets need no 3D overlay,
+- edges that fade to transparent over the outer ~250 m, so there is no hard rectangle.
 The page drapes it over the lidar terrain as a single imagery tile (no tile service, no key).
 
 Run from the repo root:  python web/tools/make_basemap.py
@@ -19,11 +21,15 @@ import rasterio
 from rasterio.features import rasterize
 from rasterio.transform import from_bounds
 from rasterio.warp import Resampling, reproject
+from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parents[2]
 BBOX = (-95.460, 29.674, -95.425, 29.698)
-STEP = 0.00003  # degrees per pixel (~3 m)
+STEP = 0.00002  # degrees per pixel (~2 m)
+SS = 2          # supersampling for the vector layers (anti-aliasing)
+FADE_M = 250
 OUT = ROOT / "web" / "assets" / "basemap.png"
+MAJOR = {"motorway", "trunk", "primary", "secondary", "motorway_link", "trunk_link", "primary_link"}
 
 
 def main() -> None:
@@ -35,61 +41,74 @@ def main() -> None:
         reproject(rasterio.band(src, 1), dem, dst_transform=dst_t, dst_crs="EPSG:4326",
                   src_nodata=src.nodata, dst_nodata=np.nan, resampling=Resampling.bilinear)
     dem = np.where(np.isnan(dem), np.nanmedian(dem), dem)
+    dem = ndimage.gaussian_filter(dem, 0.8)  # take the lidar speckle out of the shading
 
-    # hillshade (sun from the north-west, 40 deg), slopes in metres
-    dx = STEP * 111_320 * math.cos(math.radians((s + n) / 2))
-    dy = STEP * 110_574
-    gy, gx = np.gradient(dem * 2.0, dy, dx)  # 2x vertical exaggeration for the shading only
+    mx = 111_320 * math.cos(math.radians((s + n) / 2))
+    dx, dy = STEP * mx, STEP * 110_574
+    gy, gx = np.gradient(dem * 2.5, dy, dx)
     slope = np.arctan(np.hypot(gx, gy))
     aspect = np.arctan2(-gx, gy)
-    az, alt = math.radians(315), math.radians(40)
+    az, alt = math.radians(315), math.radians(42)
     shade = np.sin(alt) * np.cos(slope) + np.cos(alt) * np.sin(slope) * np.cos(az - aspect)
-    shade = np.clip(0.55 + 0.6 * shade, 0.35, 1.25)
+    shade = np.clip(0.62 + 0.55 * shade, 0.42, 1.2)
 
-    # elevation tint: low ground deep blue, high ground slate
     lo, hi = np.percentile(dem, [3, 97])
     t = np.clip((dem - lo) / (hi - lo), 0, 1)[..., None]
-    low, high = np.array([9, 22, 44], float), np.array([30, 39, 56], float)
+    low, high = np.array([12, 24, 42], float), np.array([31, 37, 48], float)
     rgb = (low * (1 - t) + high * t) * shade[..., None]
+
+    big_t = from_bounds(w, s, e, n, width * SS, height * SS)
+
+    def coverage(geoms, all_touched=False):
+        """Anti-aliased coverage 0..1: rasterise at SS x and box-average down."""
+        if not geoms:
+            return np.zeros((height, width))
+        m = rasterize(((g, 1) for g in geoms), out_shape=(height * SS, width * SS), transform=big_t, fill=0,
+                      all_touched=all_touched, dtype="uint8").astype(float)
+        return m.reshape(height, SS, width, SS).mean(axis=(1, 3))
+
+    def paint(cov, color, alpha):
+        a = (cov * alpha)[..., None]
+        rgb[:] = rgb * (1 - a) + np.array(color, float) * a
 
     ctx = json.load(open(ROOT / "web" / "assets" / "context.json", encoding="utf-8"))
 
-    def poly(rings):
+    def polys(rings):
         return [{"type": "Polygon", "coordinates": [[[r[i], r[i + 1]] for i in range(0, len(r), 2)] + [[r[0], r[1]]]]}
                 for r in rings if len(r) >= 6]
 
-    def paint(geoms, color, alpha, all_touched=False):
-        if not geoms:
-            return
-        m = rasterize(((g, 1) for g in geoms), out_shape=(height, width), transform=dst_t, fill=0,
-                      all_touched=all_touched, dtype="uint8").astype(bool)
-        rgb[m] = rgb[m] * (1 - alpha) + np.array(color, float) * alpha
+    def buffered_lines(lines, metres):
+        from shapely.geometry import LineString, mapping
+        deg = metres / mx
+        return [mapping(LineString(c).buffer(deg, cap_style=1, join_style=1)) for c in lines if len(c) >= 2]
 
-    paint(poly(ctx.get("parks", [])), (16, 40, 34), 0.55)
-    paint(poly(ctx.get("water_areas", [])), (14, 44, 76), 0.9)
-    for kind, _name, c in ctx.get("waterways", []):
-        line = {"type": "LineString", "coordinates": [[c[i], c[i + 1]] for i in range(0, len(c), 2)]}
-        # rough channel width in pixels: rivers wider than ditches
-        widths = 3 if kind in ("river", "drain") and _name else 1
-        for k in range(widths):
-            off = (k - widths // 2) * STEP
-            shifted = {"type": "LineString", "coordinates": [[x, y + off] for x, y in line["coordinates"]]}
-            paint([shifted], (31, 77, 122), 0.95, all_touched=True)
+    paint(coverage(polys(ctx.get("parks", []))), (18, 38, 36), 0.5)
+    paint(coverage(polys(ctx.get("water_areas", []))), (16, 44, 72), 0.85)
+    ways = [[[c[i], c[i + 1]] for i in range(0, len(c), 2)] for kind, name, c in ctx.get("waterways", [])]
+    channel = [[[c[i], c[i + 1]] for i in range(0, len(c), 2)] for kind, name, c in ctx.get("waterways", []) if name == "Brays Bayou"]
+    paint(coverage(buffered_lines(ways, 1.6)), (26, 60, 96), 0.8)
+    paint(coverage(buffered_lines(channel, 6.0)), (22, 56, 92), 0.75)
 
-    # 100 m survey grid
-    img = np.clip(rgb, 0, 255)
-    alpha = np.full((height, width), 255, np.uint8)
-    step_x = 100 / (111_320 * math.cos(math.radians((s + n) / 2))) / STEP
-    step_y = 100 / 110_574 / STEP
-    for xg in np.arange(0, width, step_x):
-        img[:, int(xg)] = img[:, int(xg)] * 0.8 + np.array([125, 211, 252]) * 0.2 * 0.35
-    for yg in np.arange(0, height, step_y):
-        img[int(yg), :] = img[int(yg), :] * 0.8 + np.array([125, 211, 252]) * 0.2 * 0.35
+    roads = json.load(open(ROOT / "data" / "roads.geojson", encoding="utf-8"))["features"]
+    minor = [f["geometry"]["coordinates"] for f in roads if f["properties"]["highway"] not in MAJOR]
+    major = [f["geometry"]["coordinates"] for f in roads if f["properties"]["highway"] in MAJOR]
+    paint(coverage(buffered_lines(minor, 2.2)), (70, 80, 96), 0.38)
+    paint(coverage(buffered_lines(major, 4.0)), (88, 98, 114), 0.45)
 
-    out = np.dstack([img.astype(np.uint8), alpha]).transpose(2, 0, 1)
+    img = np.clip(rgb, 0, 255).astype(np.uint8)
+    # fade the outer edge to transparent so the box never shows as a hard rectangle
+    fx = np.minimum(np.arange(width), np.arange(width)[::-1]) * dx / FADE_M
+    fy = np.minimum(np.arange(height), np.arange(height)[::-1]) * dy / FADE_M
+    fade = np.clip(np.minimum(fx[None, :], fy[:, None]), 0, 1)
+    alpha = (255 * (fade * fade * (3 - 2 * fade))).astype(np.uint8)
+
+    out = np.dstack([img, alpha]).transpose(2, 0, 1)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(OUT, "w", driver="PNG", width=width, height=height, count=4, dtype="uint8") as dst:
         dst.write(out)
+    aux = OUT.with_suffix(".png.aux.xml")
+    if aux.exists():
+        aux.unlink()
     print(f"wrote {OUT} {width}x{height} ({OUT.stat().st_size // 1024} KB)")
 
 
