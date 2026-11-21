@@ -415,7 +415,9 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
       positions: mode === 'photorealistic'
         ? Cesium.Cartesian3.fromDegreesArray(coords.flat())
         : Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ROAD_H + 0.3])),
-      width, arcType: Cesium.ArcType.NONE, clampToGround: mode === 'photorealistic',
+      // clampToGround needs a geodesic arc; ArcType.NONE with it stops Cesium's renderer.
+      width, arcType: mode === 'photorealistic' ? Cesium.ArcType.GEODESIC : Cesium.ArcType.NONE,
+      clampToGround: mode === 'photorealistic',
       material: glow ? new Cesium.PolylineGlowMaterialProperty({ color, glowPower: 0.35, taperPower: 1 }) : color,
     } });
   }
@@ -455,6 +457,8 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
         showBackground: true, backgroundColor: C(COLORS.red, 0.88), backgroundPadding: new Cesium.Cartesian2(7, 4),
         disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: LABEL_SCALE } });
     line.cc = tag.cc = { kind: 'road', props: feature.properties, feature, tier: roadTier(feature.properties) };
+    // Drawn at operational-map heights, so hidden on the photorealistic city like setMode does (it would float).
+    line.show = tag.show = mode === 'operational';
     closures.set(id, [line, tag]);
     if (!reduceMotion()) {
       let k = 0;

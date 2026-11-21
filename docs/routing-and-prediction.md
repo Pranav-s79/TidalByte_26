@@ -1,6 +1,6 @@
 # Routing and prediction
 
-Nov 21, 2026 · status: **built** (1:43 PM): `flood/predict.py` and `flood/route.py` (Pri), with replay routes in `web/data/routes.json`; the route presenter `flood/present_routes.py` (Sujit, §6). The replay pipeline they build on is `flood/fill.py`, `flood/roads.py`, `flood/run.py`. Camera frames are read into observations by `flood/read_frame.py` (Sujit), which `predict.readings_from_observations` uses as they are.
+Nov 21, 2026 · status: **built** (1:43 PM): `flood/predict.py` and `flood/route.py` (Pri), with replay routes in `web/data/routes.json`; `flood/serve.py` (Pri) runs the router live behind `POST /route`; the route presenter `flood/present_routes.py` (Sujit, §6). The replay pipeline they build on is `flood/fill.py`, `flood/roads.py`, `flood/run.py`. Camera frames are read into observations by `flood/read_frame.py` (Sujit), which `predict.readings_from_observations` uses as they are.
 
 This is the single source for how routing works and what it may say. Every other doc links here instead of restating it.
 
@@ -61,6 +61,8 @@ The arrival time is the time a vehicle would reach that segment. Version 1 compu
 | Estimated | The fill's high run |
 | Unknown | No depth. Routable, but counted as unobserved distance |
 
+> **As built: Prince's camera catalog.** `route.load_cameras("data/cameras.json", observations)` feeds the router. Only `visible_osm_ids` (a reviewer checked the view) take a camera's depth, and only in live mode (with a departure time). `candidate_osm_ids` are nearby roads nobody has checked. They are listed on each option as "view not verified" and never change a depth. Readings are the observations carrying that `camera_id`. Today all six cameras have no verified roads and no readings (no TxDOT snapshot permission), so every depth is still the replay estimate. On the Meyerland demo trip, both options run 0.89 km (A) and 1.04 km (B) along IH-610 roads that camera 630 (Braeswood) may see.
+
 ### 4. Least-deep routing (`flood/route.py`)
 
 Inputs: a start, an end, the person-set limit L, and an "avoid unobserved roads" switch.
@@ -69,7 +71,7 @@ Inputs: a start, an end, the person-set limit L, and an "avoid unobserved roads"
 2. Try depth caps of 0, 5, 10 cm … up to L. The first cap under which start and end connect wins. Within that cap, take the shortest path by length (networkx). That path is **option A: least-deep**.
 3. **Option B: shortest within the limit.** The shortest path using every segment at or under L.
 4. **Option C: least unobserved.** The shortest path in the same graph, with Unknown segments' length multiplied by 5.
-5. Drop duplicate options.
+5. Drop duplicate options, including paths that use the same roads with the same distance, deepest point and unobserved distance (they read as one option).
 6. Each option reports: total km, deepest point (its value, source label and road name), unobserved km, and when it will be re-checked.
 7. If nothing connects under L, report "No route within the depth limit you set", list the segments that block it, and draw no route.
 

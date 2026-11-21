@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from flood.route import build_graph, recheck_route, route_options, write_routes
+from flood.route import build_graph, load_cameras, recheck_route, route_options, write_routes
 
 LON0, LAT0 = -95.45, 29.68  # toy roads near Meyerland; offsets of 0.001 deg are ~100 m
 NOW = datetime(2026, 11, 21, 14, 0)
@@ -61,12 +61,34 @@ def test_road_over_limit_is_never_used_and_duplicates_dropped():
     assert out["options"][0]["osm_ids"] == ["ac", "cb"]
 
 
+def test_snapped_point_is_named_after_the_road_clicked():
+    """A click just along 'direct' from corner A names 'direct', not whichever road at A comes first."""
+    near_direct = pt(0.0003, 0.00002)
+    near_ac = [A[0] + 0.00015, A[1] + 0.00018]
+    assert route_options(triangle(), near_direct, B, 0.5)["start"]["snapped_to"] == "Road direct"
+    assert route_options(triangle(), near_ac, B, 0.5)["start"]["snapped_to"] == "Road ac"
+
+
+def test_look_alike_options_are_shown_once():
+    """Two carriageways of one street: different nodes, same roads and numbers. One option, not two."""
+    def main(osm_id, coords, depth):
+        f = road(osm_id, coords, depth)
+        f["properties"]["name"] = "Main Street"
+        return f
+    s1, s2 = pt(0.0049, -0.00001), pt(0.00495, -0.00001)
+    G = build_graph(fc(main("n", [A, pt(0.005, 0.0002), B], 0.10), main("s1", [A, s1], 0.10),
+                       main("gap", [s1, s2], None), main("s2", [s2, B], 0.10)))
+    out = route_options(G, A, B, 0.30)
+    assert kinds(out) == ["least_deep"] and out["options"][0]["via"] == ["Main Street"]
+
+
 def test_no_route_lists_blocking_segments():
     out = route_options(triangle(), A, B, 0.05)
     assert out["status"] == "no_route_within_limit"
     assert out["options"] == []
     assert out["message"] == "No route within the depth limit you set."
-    assert out["blocking"] == [{"osm_id": "direct", "road": "Road direct", "source": "Estimated", "depth_m": 0.40}]
+    assert out["blocking"][0] == {"osm_id": "ac", "road": "Road ac", "source": "Estimated", "closed": False,
+                                  "depth_m": 0.10}
 
 
 def test_unobserved_km_counted_and_unknown_never_dry():
@@ -150,6 +172,52 @@ def test_replay_options_say_not_rechecked():
     assert route_options(triangle(), A, B, 0.50)["options"][0]["recheck"] == "Not re-checked: REPLAY data"
 
 
+# --- Prince's camera catalog (data/cameras.json) ---
+
+def catalog(tmp_path, visible=(), candidate=()):
+    path = tmp_path / "cameras.json"
+    json.dump({"source": "Houston TranStar", "cameras": [
+        {"id": "631", "road": "IH-610 South Loop", "cross_street": "Stella Link", "lat": LAT0, "lon": LON0,
+         "snapshot_url": "https://example.invalid/631.jpg", "candidate_osm_ids": list(candidate),
+         "visible_osm_ids": list(visible), "dry_baseline": None}]}, open(path, "w"))
+    return path
+
+
+def reading(minutes_ago, lo, hi, status="confirmed", camera_id="631", confidence="medium"):
+    return {"camera_id": camera_id, "taken_at": (NOW - timedelta(minutes=minutes_ago)).isoformat(),
+            "depth_m_low": lo, "depth_m_high": hi, "status": status, "confidence": confidence}
+
+
+def test_candidate_camera_is_reported_but_never_changes_depth(tmp_path):
+    """A nearby camera whose view nobody checked: named on the route, no depth, no re-check promise."""
+    cams = load_cameras(catalog(tmp_path, candidate=["direct"]), [reading(m, 0.5, 0.6) for m in range(0, 40, 5)])
+    out = route_options(triangle(direct=0.0), A, B, 0.30, cameras=cams, depart=NOW)
+    opt = out["options"][0]
+    assert opt["osm_ids"] == ["direct"] and opt["deepest"]["source"] == "Estimated"
+    assert opt["cameras"] == [{"id": "631", "road": "IH-610 South Loop", "cross_street": "Stella Link",
+                               "view": "not verified", "route_km": opt["distance_km"], "n_readings": 8}]
+    assert opt["recheck"] == "Not watched: camera 631 may see part of this route (view not verified)"
+
+
+def test_verified_camera_readings_change_the_route(tmp_path):
+    obs = [reading(m, 0.45, 0.55) for m in range(0, 40, 5)]
+    obs += [reading(0, 0.0, 0.0, status="rejected"), reading(0, 0.0, 0.0, confidence="low"),
+            reading(0, 0.0, 0.0, camera_id="999")]
+    cams = load_cameras(catalog(tmp_path, visible=["direct"]), obs)
+    assert len(cams[0]["readings"]) == 8  # rejected, low-confidence and other cameras' readings left out
+    out = route_options(triangle(direct=0.0), A, B, 0.30, cameras=cams, depart=NOW)
+    assert out["options"][0]["osm_ids"] == ["ac", "cb"]
+    assert out["options"][0]["cameras"] == []
+
+
+def test_replay_with_catalog_lists_cameras_but_stays_replay(tmp_path):
+    cams = load_cameras(catalog(tmp_path, visible=["direct"]))
+    opt = route_options(triangle(direct=0.0), A, B, 0.30, cameras=cams)["options"][0]
+    assert opt["recheck"] == "Not re-checked: REPLAY data"
+    assert opt["deepest"]["source"] == "Estimated"
+    assert opt["cameras"][0]["view"] == "verified" and opt["cameras"][0]["n_readings"] == 0
+
+
 # --- §5 re-planning alerts ---
 
 def test_recheck_alerts_when_route_goes_over_limit():
@@ -193,3 +261,20 @@ def test_replay_routes_cross_meyerland(tmp_path):
         lats = [c[1] for c in o["geometry"]["coordinates"]]
         assert max(lats) > 29.69 and min(lats) < 29.68
         assert o["deepest"] is None or o["deepest"]["depth_m"] <= 0.30
+
+
+def test_hypothetical_closure_is_never_used():
+    out = route_options(triangle(direct=0.0), A, B, 0.30, closed=["direct"])
+    assert [o["osm_ids"] for o in out["options"]] == [["ac", "cb"]] and out["closed_osm_ids"] == ["direct"]
+    blocked = route_options(triangle(direct=0.0), A, B, 0.30, closed=["direct", "ac"])
+    assert blocked["status"] == "no_route_within_limit"
+    assert {b["osm_id"]: b["closed"] for b in blocked["blocking"]} in ({"direct": True}, {"ac": True})
+    # Closures, not depth, block the way: the message must not blame the depth limit.
+    assert "depth limit" not in blocked["message"] and blocked["shallowest_deepest_m"] is None
+
+
+def test_no_route_reports_the_shallowest_way_through():
+    """Limit under every road: blocking is the shallowest way (A-C-B at 0.10 m), not the shortest (0.40 m)."""
+    out = route_options(triangle(), A, B, 0.05)
+    assert out["shallowest_deepest_m"] == 0.10
+    assert sorted(b["osm_id"] for b in out["blocking"]) == ["ac", "cb"]

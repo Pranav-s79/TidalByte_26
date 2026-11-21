@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-21T19:41:11+00:00",
+ "generated_at": "2026-11-21T20:51:22+00:00",
  "label": "REPLAY \u00b7 Harvey 2017 estimated peak \u00b7 not current conditions",
  "depth_limit_note": "Set by the person running this; the router never chooses it.",
  "depth_limit_m": 0.3,
@@ -16,6 +16,7 @@
   "snapped_to": "Lymbar Drive / Bassoon Drive",
   "snap_distance_m": 0
  },
+ "closed_osm_ids": [],
  "status": "ok",
  "options": [
   {
@@ -30,6 +31,16 @@
    "unobserved_share": 0.94,
    "n_bridges_not_estimated": 2,
    "recheck": "Not re-checked: REPLAY data",
+   "cameras": [
+    {
+     "id": "630",
+     "road": "IH-610 South Loop",
+     "cross_street": "Braeswood",
+     "view": "not verified",
+     "route_km": 0.89,
+     "n_readings": 0
+    }
+   ],
    "via": [
     "Verone Street",
     "South Avenue B",
@@ -490,6 +501,16 @@
    "unobserved_share": 0.85,
    "n_bridges_not_estimated": 3,
    "recheck": "Not re-checked: REPLAY data",
+   "cameras": [
+    {
+     "id": "630",
+     "road": "IH-610 South Loop",
+     "cross_street": "Braeswood",
+     "view": "not verified",
+     "route_km": 1.04,
+     "n_readings": 0
+    }
+   ],
    "via": [
     "Verone Street",
     "West Loop South Frontage Road",
@@ -792,6 +813,7 @@
   "Roads with no data are counted as unobserved, not dry.",
   "A road's deepest estimated point is applied along its whole length.",
   "Every road is treated as two-way.",
-  "Arrival times assume the posted speed limit, or 30 km/h where none is mapped."
+  "Arrival times assume the posted speed limit, or 30 km/h where none is mapped.",
+  "Cameras marked 'view not verified' are near a road on the route, but nobody has checked a frame to confirm they see it. They add no depth."
  ]
 }

@@ -3,6 +3,7 @@ import { loadCore, loadBuildings, loadContext, loadCameras, loadPhotorealisticDa
 import { createScene } from './scene.js';
 import { createPhotorealisticLayer } from './photorealistic.js';
 import * as ui from './ui.js';
+import { setupRouting } from './routing.js';
 
 const state = { data: {}, selected: null, closures: new Map(), playing: false, step: 3, timer: null };
 let photorealisticLayer = null;
@@ -27,6 +28,7 @@ const scene = createScene(document.getElementById('cesium'), document.getElement
 });
 window.floodScene = scene; // console debugging
 scene.intro();
+const routing = setupRouting(scene, { getClosures: () => [...state.closures.keys()].map(String) });
 
 // ---------------------------------------------------------------- selection
 function select(info, { fly = false, focus = false } = {}) {
@@ -66,10 +68,12 @@ function toggleClosure(feature) {
   ui.renderClosures([...state.closures.values()], (f) => select({ kind: 'road', props: f.properties, feature: f }, { fly: true }),
     (f) => toggleClosure(f));
   if (state.selected && state.selected.kind === 'road') ui.renderDetails(state.selected, ctx());
+  routing.refresh();
+  routing.rerun();
   ui.toast(on ? 'Hypothetical closure added. Not an official closure.' : 'Hypothetical closure removed.', 'info', 2600);
 }
 
-scene.onPick((info) => select(info, { fly: !!info && info.kind === 'pin' }));
+scene.onPick((info) => { if (!routing.isPicking()) select(info, { fly: !!info && info.kind === 'pin' }); });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.selected) select(null);
 });
@@ -153,6 +157,7 @@ async function refreshPins() {
 async function setMapMode(mode, { announce = true } = {}) {
   if (mode === 'operational') {
     scene.setMode('operational');
+    routing.redraw();
     ui.setStatus('ok', 'Operational map');
     if (announce) ui.toast('Analysis view enabled.', 'info', 2200);
     scene.flyOverview({ duration: 1.8 });
@@ -173,6 +178,7 @@ async function setMapMode(mode, { announce = true } = {}) {
     }
   }
   scene.setMode('photorealistic', photorealisticLayer);
+  routing.redraw();
   ui.setStatus('ok', 'Photorealistic city loaded');
   if (announce) ui.toast('Photorealistic view enabled.', 'info', 2200);
   scene.flyOverview({ duration: 2.2 });
