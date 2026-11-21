@@ -3,8 +3,10 @@
 import { icon } from './icons.js';
 import { PHRASE, ROAD_PHRASE, AI_STATUS_PHRASE, CRITICAL_DEPTH_M, isUsgs, pinId, safeUrl } from './data.js';
 import { pinTier, roadTier } from './scene.js';
+import { CLS, CLASS_LABEL } from './flood3d.js';
 
 export const $ = (sel) => document.querySelector(sel);
+export const iconSvg = (name) => icon(name);
 
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
@@ -332,6 +334,34 @@ export function renderDetails(sel, ctx) {
       h('div', { class: 'review-btns' }, h('button', { class: `btn ${closed ? 'btn-ghost' : 'btn-reject'}`, type: 'button', icon: closed ? 'x' : 'ban',
         onclick: () => ctx.toggleClosure(sel.feature) }, closed ? 'Remove hypothetical closure' : 'Mark closed (hypothetical)'))));
     actions.append(fly('Zoom to road', 'locate', () => ctx.flyTo(sel)), fly('Overview', 'overview', ctx.overview));
+  } else if (sel.kind === 'water' && sel.at) {
+    // A clicked point on the terrain-aware flood model (flood3d grid).
+    const a = sel.at;
+    const meta = {
+      [CLS.PROFILE]: ['k-cyan', 'droplet', CLASS_LABEL[CLS.PROFILE], 'c-cyan'],
+      [CLS.SHORELINE]: ['k-amber', 'droplet', CLASS_LABEL[CLS.SHORELINE], 'c-amber'],
+      [CLS.UNRESOLVED]: ['k-amber', 'info', CLASS_LABEL[CLS.UNRESOLVED], 'c-amber'],
+      [CLS.DRY]: ['k-slate', 'info', CLASS_LABEL[CLS.DRY], 'c-amber'],
+    }[a.cls] || ['k-slate', 'info', PHRASE.unknown, 'c-amber'];
+    host.append(header([badge(meta[0], meta[1], meta[2])], a.cls === CLS.DRY ? 'Outside the mapped flood extent' : 'Estimated flooding at this point',
+      coordText(a.lon, a.lat)));
+    const value = a.depth !== null ? fmtDepth(a.depth) : a.cls === CLS.UNRESOLVED ? 'Depth not resolved' : a.cls === CLS.DRY ? 'Not mapped' : 'Unknown';
+    const q = a.cls === CLS.PROFILE ? 'Estimated peak depth · water level from nearby USGS marks'
+      : a.cls === CLS.SHORELINE ? 'Estimated peak depth · lower confidence (no marks on this reach)'
+        : a.cls === CLS.UNRESOLVED ? 'Inside the USACE extent, but the estimated water level is at or below the ground here'
+          : 'The USACE model shows no riverine flooding here. Not verified, and rain ponding is not modelled.';
+    host.append(depthBlock(value, q, meta[3]));
+    if (a.depth !== null) { const bar = depthBar(a.depth, a.depth, meta[3]); if (bar) host.append(bar); }
+    const m = (v) => (v === null || v === undefined ? null : `${Number(v).toFixed(2)} m NAVD88`);
+    host.append(h('dl', { class: 'fields' },
+      field('Water level', a.wse !== null ? `${m(a.wse)} (estimated)` : null, false),
+      field('Ground', m(a.ground) ? `${m(a.ground)} (lidar)` : null),
+      field('Extent', 'USACE HEC-RAS maximum, Harvey 2017 (modelled)'),
+      field('Level from', a.cls === CLS.PROFILE ? `USGS high-water marks, interpolated along Brays Bayou`
+        : a.cls === CLS.SHORELINE ? 'Nearest mapped shoreline elevation (FwDET)' : null)));
+    host.append(h('p', { class: 'caveat', icon: 'info' },
+      'Peak estimate from a modelled extent and 10 surveyed marks. Not a hydraulic simulation. Not an all-clear.'));
+    actions.append(fly('Zoom here', 'locate', () => ctx.flyTo(sel)), fly('Overview', 'overview', ctx.overview));
   } else if (sel.kind === 'water') {
     const p = sel.props;
     const likely = p.status === 'likely';
@@ -344,7 +374,9 @@ export function renderDetails(sel, ctx) {
     actions.append(fly('Zoom to area', 'locate', () => ctx.flyTo(sel)), fly('Overview', 'overview', ctx.overview));
   } else if (sel.kind === 'unknown') {
     host.append(header([badge('k-slate', 'info', PHRASE.unknown)], 'No evidence here'));
-    host.append(h('p', { class: 'caveat', icon: 'info' }, 'No USGS high-water mark within 400 m, so no depth is estimated. Unknown is not dry.'));
+    host.append(h('p', { class: 'caveat', icon: 'info' }, ctx.terrain
+      ? 'Outside the analysis area: no lidar, no flood model. Unknown is not dry.'
+      : 'No USGS high-water mark within 400 m, so no depth is estimated. Unknown is not dry.'));
     actions.append(fly('Overview', 'overview', ctx.overview));
   }
   host.append(actions);

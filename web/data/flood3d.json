@@ -1,0 +1,219 @@
+{
+ "generated_at": "2026-11-21T21:00:41+00:00",
+ "cols": 574,
+ "rows": 456,
+ "cell_m": 6.0,
+ "affine": [
+  6.197701053914969e-05,
+  1.3093720200862968e-06,
+  -95.46055604373845,
+  1.1432200280885646e-06,
+  -5.412065912377417e-05,
+  29.69796810883506
+ ],
+ "affine_max_error_m": 0.23,
+ "layout": "int16 ground_cm[n], int16 wse_cm[n] (-32768 = none), uint8 class[n], uint8 level_code[n] (255 = dry at peak; k = still under water and connected to the bayou when the peak surface is lowered by k*level_step_m); n = rows*cols, row 0 = north",
+ "height_datum": "NAVD88 metres (lidar)",
+ "classes": {
+  "0": "no data",
+  "1": "not in mapped extent",
+  "2": "estimated depth (measured reach)",
+  "3": "estimated depth (lower confidence)",
+  "4": "mapped flooded, depth not resolved"
+ },
+ "cell_counts": {
+  "no data": 0,
+  "not in mapped extent": 29409,
+  "estimated depth (measured reach)": 122181,
+  "estimated depth (lower confidence)": 81711,
+  "mapped flooded, depth not resolved": 28443
+ },
+ "validation": {
+  "marks": [
+   {
+    "wse_measured": 15.585,
+    "depth_measured": 0.664,
+    "ground_lidar": 14.806,
+    "wse_profile_loo": 15.507,
+    "wse_fwdet": 15.904,
+    "in_usace_extent": true,
+    "id": "22840"
+   },
+   {
+    "wse_measured": 15.671,
+    "depth_measured": 0.619,
+    "ground_lidar": 14.587,
+    "wse_profile_loo": 15.287,
+    "wse_fwdet": 15.607,
+    "in_usace_extent": true,
+    "id": "22842"
+   },
+   {
+    "wse_measured": 15.374,
+    "depth_measured": 1.122,
+    "ground_lidar": 14.174,
+    "wse_profile_loo": 15.358,
+    "wse_fwdet": 14.783,
+    "in_usace_extent": true,
+    "id": "22856"
+   },
+   {
+    "wse_measured": 15.379,
+    "depth_measured": 0.652,
+    "ground_lidar": 14.698,
+    "wse_profile_loo": 15.38,
+    "wse_fwdet": 14.859,
+    "in_usace_extent": true,
+    "id": "22857"
+   },
+   {
+    "wse_measured": 15.342,
+    "depth_measured": 0.847,
+    "ground_lidar": 14.603,
+    "wse_profile_loo": 15.375,
+    "wse_fwdet": 15.327,
+    "in_usace_extent": true,
+    "id": "22883"
+   },
+   {
+    "wse_measured": 15.287,
+    "depth_measured": 0.686,
+    "ground_lidar": 14.587,
+    "wse_profile_loo": 15.671,
+    "wse_fwdet": 15.607,
+    "in_usace_extent": true,
+    "id": "22884"
+   },
+   {
+    "wse_measured": 16.084,
+    "depth_measured": 1.768,
+    "ground_lidar": 13.948,
+    "wse_profile_loo": 15.932,
+    "wse_fwdet": 15.142,
+    "in_usace_extent": true,
+    "id": "22890"
+   },
+   {
+    "wse_measured": 16.124,
+    "depth_measured": 1.149,
+    "ground_lidar": 14.01,
+    "wse_profile_loo": 16.286,
+    "wse_fwdet": 16.018,
+    "in_usace_extent": true,
+    "id": "22892"
+   },
+   {
+    "wse_measured": 16.286,
+    "depth_measured": 1.393,
+    "ground_lidar": 14.704,
+    "wse_profile_loo": 16.103,
+    "wse_fwdet": 15.845,
+    "in_usace_extent": true,
+    "id": "22893"
+   },
+   {
+    "wse_measured": 15.89,
+    "depth_measured": 0.838,
+    "ground_lidar": 14.915,
+    "wse_profile_loo": 16.08,
+    "wse_fwdet": 15.301,
+    "in_usace_extent": true,
+    "id": "22894"
+   }
+  ],
+  "profile_leave_one_out": {
+   "n": 10,
+   "mae_m": 0.158,
+   "bias_m": -0.004,
+   "max_abs_m": 0.384
+  },
+  "fwdet": {
+   "n": 10,
+   "mae_m": 0.391,
+   "bias_m": -0.263,
+   "max_abs_m": 0.942
+  },
+  "marks_in_extent": 10
+ },
+ "sources": {
+  "extent": "USACE Harvey maximum inundation extent, Brays Bayou (HEC-RAS), https://arcgis.cuahsi.org/arcgis/rest/services/MaximumFloodExtents_Harvey2017/MapServer",
+  "water_levels": "USGS Harvey high-water marks (data/marks.csv)",
+  "ground": "USGS 3DEP lidar DEM, 2 m (data/dem.tif)"
+ },
+ "method": "Water surface interpolated along Brays Bayou from USGS high-water marks inside the measured reach; FwDET (nearest mapped shoreline elevation) outside it. Depth = surface - ground. Not a hydraulic simulation.",
+ "measured_reach_m": [
+  5985.0,
+  8270.0
+ ],
+ "channel_length_m": 13620.0,
+ "usace_features": 507,
+ "reach_outline": [
+  [
+   [
+    -95.46059,
+    29.697994
+   ],
+   [
+    -95.460478,
+    29.693393
+   ],
+   [
+    -95.4585,
+    29.690272
+   ],
+   [
+    -95.457807,
+    29.688119
+   ],
+   [
+    -95.457367,
+    29.686196
+   ],
+   [
+    -95.44836,
+    29.673567
+   ],
+   [
+    -95.431194,
+    29.673883
+   ],
+   [
+    -95.433238,
+    29.683212
+   ],
+   [
+    -95.433648,
+    29.685641
+   ],
+   [
+    -95.434274,
+    29.690214
+   ],
+   [
+    -95.436901,
+    29.692007
+   ],
+   [
+    -95.438255,
+    29.693299
+   ],
+   [
+    -95.439309,
+    29.698388
+   ],
+   [
+    -95.46059,
+    29.697994
+   ]
+  ]
+ ],
+ "level_step_m": 0.1,
+ "level_max_drop_m": 2.0,
+ "level_cells": {
+  "0.0": 203892,
+  "0.5": 127534,
+  "1.0": 60718,
+  "1.5": 23158,
+  "2.0": 12087
+ }
+}
