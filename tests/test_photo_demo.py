@@ -43,5 +43,6 @@ def test_locate_marks_table_points_on_the_matching_close_up():
     assert m["points"] == {"passenger car or small SUV tire, top of tire": 130, "passenger car or small SUV wheel, center of hub": 158}
     assert "water at the hub" in seen[0][0]["content"][0]["text"]  # the reading's words steer it to the same object
     assert photo_demo.parse_locate('{"x": 1, "ground_y": 50, "points": {"a": 60}}', ["a"], (100, 100)) is None  # below ground
+    assert photo_demo.parse_locate('{"x": 1, "ground_y": 20, "points": {"a": 4}}', ["a"], (100, 100)) is None  # too small
     run["readings"][0]["reference_object"] = "street curb, top of curb face"
     assert photo_demo.locate(run, rows, client=lambda msgs: reply) is None  # nothing to mark it on

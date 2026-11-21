@@ -72,6 +72,9 @@ def analyze():
             "elapsed_s": round(time.monotonic() - start, 1)}
 
 
+MIN_MARK_PX = 20
+
+
 def parse_locate(raw, names, size):
     """Reply -> {"x", "ground_y", "points": {row name: y}} in close-up pixels, or None. Points must sit above the ground."""
     d = rp._extract_json(raw) or {}
@@ -82,7 +85,8 @@ def parse_locate(raw, names, size):
         return None
     pts = {n: y for n, y in pts.items() if 0 <= y < ground}
     ok = 0 <= x <= size[0] and 0 <= ground <= size[1] * 1.2  # ground may sit a little below the crop's edge
-    return {"x": x, "ground_y": ground, "points": pts} if ok and pts else None
+    tall = pts and ground - min(pts.values()) >= MIN_MARK_PX  # a few pixels (e.g. a bus seen from the air) shows nothing
+    return {"x": x, "ground_y": ground, "points": pts} if ok and tall else None
 
 
 def locate(run, rows, client=rp.post_chat):

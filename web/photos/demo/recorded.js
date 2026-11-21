@@ -1,4 +1,6 @@
 // Written by python -m flood.photo_demo --record: real PyTorch detector and Nemotron output.
+// Reads: the earlier recording (see each run's analyzed_at). "locate" (tire/leg marks for the walkthrough drawing)
+// comes from a second recorder run on Nov 21, 2026 against the same close-up files; its own reads were not kept.
 const referenceHeights = [
  {
   "name": "passenger car or small SUV tire, top of tire",
@@ -19,10 +21,22 @@ const referenceHeights = [
   "source": "Iowa DOT Design Manual 3C-2: 4 in sloped, 6 in sloped and 6 in standard curbs. https://iowadot.gov/design-manual/chapter-3-cross-sections/3c-2-curbs . Houston curbs not yet checked."
  },
  {
+  "name": "standing adult, ankle bone",
+  "height_m_low": 0.05,
+  "height_m_high": 0.08,
+  "source": "ANSUR II public data, lateral malleolus height, barefoot: 5th percentile women 54 mm to 95th percentile men 83 mm (1,986 women, 4,082 men). Computed by us from https://www.openlab.psu.edu/ansur2/ . Shoes add a few cm."
+ },
+ {
   "name": "standing adult, middle of kneecap",
   "height_m_low": 0.41,
   "height_m_high": 0.54,
   "source": "ANSUR II public data, knee height (midpatella), barefoot: 5th percentile women 408 mm to 95th percentile men 536 mm (1,986 women, 4,082 men). Computed by us from https://www.openlab.psu.edu/ansur2/ . Shoes add a few cm."
+ },
+ {
+  "name": "standing adult, waist at the navel",
+  "height_m_low": 0.9,
+  "height_m_high": 1.14,
+  "source": "ANSUR II public data, waist height (omphalion), barefoot: 5th percentile women 900 mm to 95th percentile men 1,144 mm (1,986 women, 4,082 men). Computed by us from https://www.openlab.psu.edu/ansur2/ . Shoes add a few cm."
  }
 ];
 const recordedRuns = [
@@ -226,7 +240,19 @@ const recordedRuns = [
   "boxes": "demo/houston-lot-2017-08-27-a-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:33:57+00:00",
-  "elapsed_s": 40.3
+  "elapsed_s": 40.3,
+  "locate": {
+   "crop": "demo/houston-lot-2017-08-27-a/07-car.jpg",
+   "size": [
+    552,
+    257
+   ],
+   "x": 110.0,
+   "ground_y": 255.0,
+   "points": {
+    "passenger car or small SUV wheel, center of hub": 220.0
+   }
+  }
  },
  {
   "file": "houston-lot-2017-08-27-b.jpg",
@@ -416,7 +442,20 @@ const recordedRuns = [
   "boxes": "demo/houston-lot-2017-08-27-b-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:34:37+00:00",
-  "elapsed_s": 40.5
+  "elapsed_s": 40.5,
+  "locate": {
+   "crop": "demo/houston-lot-2017-08-27-b/06-car.jpg",
+   "size": [
+    540,
+    238
+   ],
+   "x": 125.0,
+   "ground_y": 235.0,
+   "points": {
+    "passenger car or small SUV tire, top of tire": 190.0,
+    "passenger car or small SUV wheel, center of hub": 210.0
+   }
+  }
  },
  {
   "file": "houston-fence-2017-08-27.jpg",
@@ -591,7 +630,20 @@ const recordedRuns = [
   "boxes": "demo/houston-fence-2017-08-27-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:35:24+00:00",
-  "elapsed_s": 46.6
+  "elapsed_s": 46.6,
+  "locate": {
+   "crop": "demo/houston-fence-2017-08-27/01-car.jpg",
+   "size": [
+    693,
+    391
+   ],
+   "x": 315.0,
+   "ground_y": 370.0,
+   "points": {
+    "passenger car or small SUV tire, top of tire": 300.0,
+    "passenger car or small SUV wheel, center of hub": 335.0
+   }
+  }
  },
  {
   "file": "ike-cars-2008-09-13.jpg",
@@ -707,7 +759,20 @@ const recordedRuns = [
   "boxes": "demo/ike-cars-2008-09-13-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:36:22+00:00",
-  "elapsed_s": 58.5
+  "elapsed_s": 58.5,
+  "locate": {
+   "crop": "demo/ike-cars-2008-09-13/01-car.jpg",
+   "size": [
+    684,
+    294
+   ],
+   "x": 480.0,
+   "ground_y": 260.0,
+   "points": {
+    "passenger car or small SUV tire, top of tire": 200.0,
+    "passenger car or small SUV wheel, center of hub": 230.0
+   }
+  }
  },
  {
   "file": "piney-point-2017-08-27.jpg",
@@ -798,7 +863,8 @@ const recordedRuns = [
   "boxes": "demo/piney-point-2017-08-27-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:36:49+00:00",
-  "elapsed_s": 26.3
+  "elapsed_s": 26.3,
+  "locate": null
  },
  {
   "file": "barker-reservoir-2017-08-29.jpg",
@@ -890,7 +956,21 @@ const recordedRuns = [
   "boxes": "demo/barker-reservoir-2017-08-29-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:37:23+00:00",
-  "elapsed_s": 34.3
+  "elapsed_s": 34.3,
+  "locate": {
+   "crop": "demo/barker-reservoir-2017-08-29/00-person.jpg",
+   "size": [
+    247,
+    506
+   ],
+   "x": 123.0,
+   "ground_y": 506.0,
+   "points": {
+    "standing adult, ankle bone": 480.0,
+    "standing adult, middle of kneecap": 380.0,
+    "standing adult, waist at the navel": 300.0
+   }
+  }
  },
  {
   "file": "huntsville-sign-2017-08-28.jpg",
@@ -985,7 +1065,8 @@ const recordedRuns = [
   "boxes": "demo/huntsville-sign-2017-08-28-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:37:36+00:00",
-  "elapsed_s": 13.4
+  "elapsed_s": 13.4,
+  "locate": null
  },
  {
   "file": "houston-aerial-2017-08.jpg",
@@ -1140,7 +1221,8 @@ const recordedRuns = [
   "boxes": "demo/houston-aerial-2017-08-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:38:27+00:00",
-  "elapsed_s": 51.1
+  "elapsed_s": 51.1,
+  "locate": null
  },
  {
   "file": "refs/22840.jpg",
@@ -1232,6 +1314,7 @@ const recordedRuns = [
   "boxes": "demo/22840-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "analyzed_at": "2026-11-21T21:38:37+00:00",
-  "elapsed_s": 9.7
+  "elapsed_s": 9.7,
+  "locate": null
  }
 ];
