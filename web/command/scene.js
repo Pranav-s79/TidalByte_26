@@ -227,9 +227,10 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     try {
       const rect = Cesium.Rectangle.fromDegrees(...bbox);
       const img = await Cesium.SingleTileImageryProvider.fromUrl(basemapUrl, { rectangle: rect });
-      const layer = viewer.imageryLayers.addImageryProvider(img);
-      layer.brightness = 1.15;
+      basemapLayer = viewer.imageryLayers.addImageryProvider(img);
+      basemapLayer.brightness = 1.15;
     } catch (e) { console.warn('[scene] basemap image unavailable', e); }
+    analysisBox = bbox;
     // Outside the analysis box there is no data: the basemap fades into the night there and a thin
     // dashed line marks the edge ("Unknown: no data"), so nothing outside reads as dry ground.
     const [w, s, e, n] = bbox;
@@ -237,6 +238,22 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
       clampToGround: true, width: 1.4, material: new Cesium.PolylineDashMaterialProperty({ color: C('#94a3b8', 0.45), gapColor: Cesium.Color.TRANSPARENT, dashLength: 14 }) } });
     edge.cc = { kind: 'unknown', props: { status: 'unknown' } };
     layers.unknown.push({ entity: edge });
+  }
+
+  // Satellite ground: Cesium World Imagery (ion asset 2) on the same lidar terrain, in place of the
+  // dark basemap. The globe is cut to the analysis box so ground with no flood data still reads as
+  // unknown (night). ponytail: globe limit, not a layer rectangle: clipping Bing's Web Mercator tiles streaks.
+  let basemapLayer = null;
+  let analysisBox = null;
+  let satLayer = null;
+  async function setSatellite(on) {
+    if (on && !satLayer) {
+      satLayer = viewer.imageryLayers.addImageryProvider(await Cesium.IonImageryProvider.fromAssetId(2));
+      satLayer.brightness = 0.85;
+    }
+    if (satLayer) satLayer.show = on;
+    if (basemapLayer) basemapLayer.show = !on;
+    scene.globe.cartographicLimitRectangle = on && analysisBox ? Cesium.Rectangle.fromDegrees(...analysisBox) : Cesium.Rectangle.MAX_VALUE;
   }
 
   // levels: water-surface manager from flood3d.createWaterLevels (has a `show` property).
@@ -716,7 +733,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   });
 
   return {
-    viewer, addContext, useTerrain, addCameras, addFloodSurface, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
+    viewer, addContext, useTerrain, setSatellite, addCameras, addFloodSurface, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
     groundH, // operational-map ground height (lidar terrain when loaded, else 0) plus a lift
     flyOverview, flyToPoint, flyToFeature, streetLevel, topDown, intro,
     // Orbit around the point at screen centre until north is up, keeping tilt and distance.

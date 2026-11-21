@@ -68,11 +68,13 @@ export function setBuilt(meta) {
 
 // ---------------------------------------------------------------- map appearance
 export function setupMapMode({ available, onChange, onError }) {
-  const buttons = [...document.querySelectorAll('[data-map-mode]')];
-  const photo = buttons.find((b) => b.dataset.mapMode === 'photorealistic');
-  if (!available && photo) {
-    photo.disabled = true;
-    photo.title = 'Add CESIUM_ION_TOKEN to web/config.local.js to enable this mode';
+  const buttons = [...document.querySelectorAll('button[data-map-mode]')]; // body carries data-map-mode too
+  const needsToken = (b) => b.dataset.mapMode !== 'operational';
+  if (!available) {
+    for (const b of buttons.filter(needsToken)) {
+      b.disabled = true;
+      b.title = 'Add CESIUM_ION_TOKEN to web/config.local.js to enable this mode';
+    }
   }
   const activate = async (mode, options) => {
     const button = buttons.find((candidate) => candidate.dataset.mapMode === mode);
@@ -89,7 +91,7 @@ export function setupMapMode({ available, onChange, onError }) {
     } finally {
       delete button.dataset.loading;
       buttons.forEach((candidate) => {
-        candidate.disabled = candidate.dataset.mapMode === 'photorealistic' && !available;
+        candidate.disabled = needsToken(candidate) && !available;
       });
     }
   };

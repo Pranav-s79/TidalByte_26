@@ -157,11 +157,14 @@ async function refreshPins() {
 }
 
 async function setMapMode(mode, { announce = true } = {}) {
-  if (mode === 'operational') {
+  if (mode === 'operational' || mode === 'satellite') {
+    const sat = mode === 'satellite';
+    if (sat) Cesium.Ion.defaultAccessToken = window.CESIUM_ION_TOKEN;
+    await scene.setSatellite(sat);
     scene.setMode('operational');
     routing.redraw();
-    ui.setStatus('ok', 'Operational map');
-    if (announce) ui.toast('Analysis view enabled.', 'info', 2200);
+    ui.setStatus('ok', sat ? 'Satellite imagery on lidar terrain' : 'Operational map');
+    if (announce) ui.toast(sat ? 'Satellite view enabled. Imagery is not from the flood date.' : 'Analysis view enabled.', 'info', 2600);
     scene.flyOverview({ duration: 1.8 });
     return;
   }
