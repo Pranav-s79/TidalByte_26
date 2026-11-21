@@ -52,3 +52,26 @@ def test_labels_never_say_safe(tiny_inputs):
     build_outputs(*tiny_inputs("ai_proposed"))
     text = "".join(open(p).read().lower() for p in tiny_inputs.out_dir.iterdir())
     assert not any(w in text for w in ("safe", "passable", "all clear"))
+
+
+def test_water_surface_has_levels(tiny_inputs):
+    # fixture mark: level 12.0 +/- 0.06 -> likely surface ~11.94, possible band up to ~12.06
+    build_outputs(*tiny_inputs(None))
+    feats = load(tiny_inputs.out_dir / "water_surface.geojson")["features"]
+    likely = [f["properties"]["level_m"] for f in feats if f["properties"]["status"] == "likely"]
+    possible = [f["properties"]["level_m"] for f in feats if f["properties"]["status"] == "possible"]
+    assert likely and all(11.85 <= v <= 12.0 for v in likely)
+    assert all(11.9 <= v <= 12.1 for v in possible)
+
+
+def test_pins_carry_ground_height(tiny_inputs):
+    build_outputs(*tiny_inputs(None))
+    pin = load(tiny_inputs.out_dir / "pins.geojson")["features"][0]["properties"]
+    assert abs(pin["ground_m"] - 10.0) < 0.05
+
+
+def test_ground_samples_for_3d_alignment(tiny_inputs):
+    build_outputs(*tiny_inputs(None))
+    samples = load(tiny_inputs.out_dir / "ground_samples.json")
+    assert samples and all({"lon", "lat", "ground_m"} <= s.keys() for s in samples)
+    assert all(10.0 <= s["ground_m"] <= 13.0 for s in samples)

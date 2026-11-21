@@ -6,3 +6,4 @@ __pycache__/
 data/raw/
 .env
 cache/
+web/config.local.js

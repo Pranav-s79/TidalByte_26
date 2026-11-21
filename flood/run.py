@@ -77,27 +77,45 @@ def build_outputs(marks_csv, dem_tif, roads_geojson, observations_json, out_dir,
                                {"status": "possible", "depth_band": band})
     unknown = _polygons(cls == UNKNOWN, transform, crs, {"status": "unknown"})
 
+    # Flat water surfaces for the 3D view: wet cells grouped into 0.1 m water-level steps.
+    surface = []
+    for status, level, mask in (("likely", dem + depth_low, cls == LIKELY), ("possible", dem + depth_high, cls == POSSIBLE)):
+        steps = np.floor(np.where(mask, level, 0) / 0.1)
+        for s in np.unique(steps[mask]):
+            m = mask & (steps == s)
+            surface += _polygons(m, transform, crs, {"status": status, "level_m": round(float(np.nanmean(level[m])), 2)})
+
     roads = json.load(open(roads_geojson))
-    lines = []
+    lines, ground_samples = [], []
     for f in roads["features"]:
         lon, lat = zip(*f["geometry"]["coordinates"])
         lines.append(list(zip(*to_xy(lon, lat))))
+        for (x, y), (lo, la) in zip(lines[-1], f["geometry"]["coordinates"]):
+            g = ground_at(x, y)
+            if g is not None:
+                ground_samples.append({"lon": lo, "lat": la, "ground_m": round(float(g), 3)})
+    # ponytail: 60 evenly spaced road points are enough to align the 3D city model to the lidar
+    ground_samples = ground_samples[:: max(1, len(ground_samples) // 60)]
     statuses = road_status(lines, [f["properties"]["is_bridge"] for f in roads["features"]],
                            depth_high, cls, transform)
     for f, s in zip(roads["features"], statuses):
         f["properties"].update(s)
 
+    def ground_prop(x, y):
+        g = ground_at(x, y)
+        return None if g is None else round(float(g), 3)
+
     pins = [_feature({"type": "Point", "coordinates": [float(r["lon"]), float(r["lat"])]},
-                     {"kind": "usgs_measured", "id": r["id"], "status": "usgs_measured",
+                     {"kind": "usgs_measured", "id": r["id"], "status": "usgs_measured", "ground_m": ground_prop(x, y),
                       "depth_m_low": float(r["depth_m"]), "depth_m_high": float(r["depth_m"]),
                       "label": f"USGS measured (surveyed after the flood) · {float(r['depth_m']):.2f} m deep",
                       "quality": r["quality"], "description": r["description"], "photo": None, "obstacles": []})
-            for r in rows]
-    for o in obs:
+            for r, x, y in zip(rows, xs, ys)]
+    for o, x, y in zip(obs, oxs, oys):
         depth = ("depth unknown (no reference object)" if o["depth_m_low"] is None
                  else f"{o['depth_m_low']:.2f}–{o['depth_m_high']:.2f} m deep")
         pins.append(_feature({"type": "Point", "coordinates": [o["lon"], o["lat"]]},
-                             {"kind": "ai_photo", "id": o["id"], "status": o["status"],
+                             {"kind": "ai_photo", "id": o["id"], "status": o["status"], "ground_m": ground_prop(x, y),
                               "depth_m_low": o["depth_m_low"], "depth_m_high": o["depth_m_high"],
                               "label": f"{OBS_PHRASE.get(o['status'], o['status'])} · {depth}",
                               "photo": o["photo"], "obstacles": o["obstacles"], "reasoning": o["reasoning"],
@@ -117,6 +135,8 @@ def build_outputs(marks_csv, dem_tif, roads_geojson, observations_json, out_dir,
     _dump(os.path.join(out_dir, "roads_status.geojson"), roads)
     _dump(os.path.join(out_dir, "pins.geojson"), fc(pins))
     _dump(os.path.join(out_dir, "meta.json"), meta)
+    _dump(os.path.join(out_dir, "water_surface.geojson"), fc(surface))
+    _dump(os.path.join(out_dir, "ground_samples.json"), ground_samples)
     return meta
 
 
