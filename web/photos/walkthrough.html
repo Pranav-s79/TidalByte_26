@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Photo to Depth · TidalByte</title>
+  <link rel="stylesheet" href="photos.css">
+  <script defer src="demo/recorded.js"></script>
+  <style>
+    .picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .6rem; margin: 1.4rem 0 1rem; }
+    .picker button { display: grid; grid-template-rows: 5.2rem auto; gap: .4rem; padding: .4rem; text-align: left; background: #fff;
+      color: var(--ink); border: 1px solid var(--line); font-size: .78rem; font-weight: 600; line-height: 1.3; }
+    .picker button:hover { background: #ebf3f0; }
+    .picker button[aria-pressed="true"] { border-color: var(--teal); box-shadow: inset 0 0 0 2px var(--teal); }
+    .picker img { width: 100%; height: 5.2rem; object-fit: cover; border-radius: .3rem; }
+    .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: .35rem; list-style: none; padding: 0; margin: 0 0 .7rem; counter-reset: s; }
+    .steps button { width: 100%; height: 100%; background: #e3ece9; color: var(--ink); text-align: left; padding: .55rem .65rem; font-size: .8rem; line-height: 1.25; }
+    .steps button::before { counter-increment: s; content: counter(s); display: block; font-size: .68rem; color: var(--muted); font-weight: 750; }
+    .steps button[aria-current="step"] { background: var(--teal); color: #fff; }
+    .steps button[aria-current="step"]::before { color: #b8e3d7; }
+    .controls { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+    .controls .ghost { background: #fff; color: var(--teal); border: 1px solid var(--line); }
+    .controls .hint { color: var(--muted); font-size: .78rem; margin-left: auto; }
+    .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+    .frame { border: 1px solid var(--line); border-radius: .75rem; background: #fff; overflow: hidden; }
+    .imgs { display: grid; gap: 2px; background: #dce6e1; }
+    .imgs.two { grid-template-columns: 1fr 1fr; }
+    .imgs img { max-height: 62vh; object-fit: contain; background: #dce6e1; }
+    .frame figcaption { padding: .65rem .9rem; font-size: .76rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .3rem 1rem; justify-content: space-between; }
+    .explain { border: 1px solid var(--line); border-top: 4px solid var(--teal); border-radius: .75rem; background: #fff; padding: 1.2rem 1.3rem; }
+    .explain h2 { margin-bottom: .5rem; }
+    .explain > p { margin: .4rem 0 .8rem; }
+    .lede { color: var(--muted); font-size: .9rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: .6rem 0; padding: 0; list-style: none; }
+    .chips li { background: #fff6d6; border: 1px solid #f0cf6a; border-radius: 2rem; padding: .15rem .6rem; font-size: .8rem; font-weight: 600; }
+    .read { display: grid; grid-template-columns: 2.8rem 1fr; gap: .8rem; align-items: center; border-top: 1px solid var(--line); padding: .7rem 0; }
+    .read b { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+    .math { font-variant-numeric: tabular-nums; }
+    .math strong { color: #174d45; }
+    .gauge { width: 2.8rem; height: 6.5rem; }
+    .gauge .obj { fill: #f3f6f4; stroke: var(--ink); stroke-width: 1.5; }
+    .gauge .range { fill: #9fd2e6; }
+    .gauge .water { fill: #2b7fa8; }
+    .gauge .ref { stroke: #d88e1a; stroke-width: 2; stroke-dasharray: 3 2; }
+    .gauge .hatch { fill: url(#hatch); stroke: #8a9a9f; stroke-width: 1.5; }
+    .axis { position: relative; margin: 1rem 0 .4rem; }
+    .row { display: grid; grid-template-columns: 3.6rem 1fr; align-items: center; height: 2.2rem; font-size: .76rem; font-weight: 650; color: var(--muted); }
+    .track { position: relative; height: 100%; border-left: 1px solid var(--line); }
+    .bar { position: absolute; top: 50%; height: .55rem; transform: translateY(-50%); background: #2b7fa8; border-radius: 1rem; min-width: 4px; }
+    .bar::after { content: ""; position: absolute; left: 50%; top: 50%; width: .8rem; height: .8rem; border-radius: 50%; background: #fff; border: 3px solid #174d63; transform: translate(-50%, -50%); }
+    .none { position: absolute; top: 50%; transform: translateY(-50%); left: .4rem; padding: .1rem .5rem; border: 1px dashed #8a9a9f; border-radius: .3rem;
+      background: repeating-linear-gradient(135deg, #eef1f0 0 4px, #fff 4px 8px); color: #4e626b; font-weight: 600; }
+    .band { position: absolute; top: 0; bottom: 1.4rem; background: rgba(8, 100, 89, .12); border-left: 2px solid var(--teal); border-right: 2px solid var(--teal); }
+    .ticks { position: relative; height: 1.4rem; margin-left: 3.6rem; font-size: .68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .ticks span { position: absolute; transform: translateX(-50%); top: .3rem; }
+    .badge { display: inline-block; border-radius: 2rem; padding: .2rem .7rem; font-size: .76rem; font-weight: 700; }
+    .badge.ok { background: #e1f1ec; color: #0b5249; border: 1px solid #9ccfc4; }
+    .badge.review { background: #fff0cb; color: #785321; border: 1px solid #efcf88; }
+    .verdict { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .6rem; font-size: .88rem; }
+    .check { border-top: 1px solid var(--line); padding: .6rem 0; font-size: .88rem; }
+    .check .mark { font-weight: 800; margin-right: .35rem; }
+    .yes { color: #0b5249; } .no { color: #9a3b12; } .na { color: var(--muted); }
+    blockquote { margin: .6rem 0; padding: .6rem .9rem; border-left: 3px solid var(--teal); background: #f3f6f4; border-radius: 0 .4rem .4rem 0; font-size: .9rem; }
+    blockquote cite { display: block; margin-top: .3rem; font-style: normal; font-size: .72rem; color: var(--muted); font-weight: 650; }
+    .issue { color: #794e13; font-size: .84rem; }
+    .stamp { color: var(--muted); font-size: .76rem; margin-top: 1rem; }
+    @media (max-width: 760px) {
+      .stage { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .steps button { font-size: 0; padding: .5rem; }
+      .steps button::before { font-size: .9rem; color: inherit; }
+      .controls .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="#fff"/><line x1="0" y1="0" x2="0" y2="6" stroke="#b5c2c4" stroke-width="3"/></pattern></defs></svg>
+  <header><nav aria-label="Field photos">
+    <span class="brand"><span class="mark" aria-hidden="true">≈</span>TidalByte</span>
+    <a href="index.html">← Piney Point reading</a>
+  </nav></header>
+  <main>
+    <p class="overline">Recorded run <span>/</span> Hurricane Harvey photos</p>
+    <h1>How a photo becomes a depth reading</h1>
+    <p class="subtitle">Saved output of the real pipeline, replayed: a PyTorch detector, then three Nemotron reads per photo.
+      Every reading stays AI-proposed until a person reviews it.</p>
+    <div class="picker" aria-label="Choose a photo"></div>
+    <ol class="steps" aria-label="Steps"></ol>
+    <div class="controls">
+      <button type="button" class="ghost" id="back">← Back</button>
+      <button type="button" id="play">▶ Play</button>
+      <button type="button" class="ghost" id="next">Next →</button>
+      <span class="hint">Arrow keys move between steps</span>
+    </div>
+    <div class="stage">
+      <figure class="frame"><div class="imgs"></div><figcaption></figcaption></figure>
+      <section class="explain" aria-live="polite"></section>
+    </div>
+    <p class="stamp"></p>
+  </main>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const runs = typeof recordedRuns === 'undefined' ? [] : recordedRuns;
+    const heights = typeof referenceHeights === 'undefined' ? [] : referenceHeights;
+    const STEPS = ['PyTorch finds objects', 'Where the waterline sits', 'Three reads, compared', 'Second opinion', "In Nemotron's words"];
+    const NEEDS = [  // mirrors NEEDS in flood/read_photo.py
+      [['tire', 'wheel', 'hub', 'car', 'suv', 'sedan', 'vehicle', 'truck', 'bumper', 'door'], ['car', 'truck', 'bus', 'motorcycle'], 'vehicle'],
+      [['knee', 'adult', 'person', 'waist', 'ankle'], ['person'], 'person'],
+      [['stop sign'], ['stop sign'], 'stop sign'],
+      [['hydrant'], ['fire hydrant'], 'fire hydrant'],
+    ];
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+    const n2 = (v) => v.toFixed(2);
+    const reads = (r) => r.readings || [r];
+    const span = (r) => r.depth_m_low == null ? null : n2(r.depth_m_low) + '–' + n2(r.depth_m_high) + ' m';
+    const rowFor = (ref) => heights.find((h) => h.name.toLowerCase() === String(ref || '').toLowerCase());
+    const badge = (r) => r.status === 'needs_review' ? '<span class="badge review">⚠ Needs review</span>'
+      : '<span class="badge ok">◇ AI-proposed · awaiting a person</span>';
+    let photo = 0, step = 0, timer = null;
+
+    if (!runs.length) {
+      $('.explain').innerHTML = '<h2>No recorded runs yet</h2><p>Run <code>python -m flood.photo_demo --record</code>, then reload.</p>';
+      return;
+    }
+
+    $('.picker').innerHTML = runs.map((r, i) => `<button type="button" data-i="${i}">
+      <img src="${esc(r.file)}" alt="">${esc(r.title)}</button>`).join('');
+    $('.steps').innerHTML = STEPS.map((s, i) => `<li><button type="button" data-s="${i}">${s}</button></li>`).join('');
+    $('.picker').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { stop(); go(+b.dataset.i, 0); } });
+    $('.steps').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { stop(); go(photo, +b.dataset.s); } });
+    $('#back').onclick = () => { stop(); move(-1); };
+    $('#next').onclick = () => { stop(); move(1); };
+    $('#play').onclick = () => timer ? stop() : play();
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') { stop(); move(1); }
+      if (e.key === 'ArrowLeft') { stop(); move(-1); }
+    });
+
+    function move(d) {
+      const k = photo * STEPS.length + step + d;
+      if (k >= 0 && k < runs.length * STEPS.length) go(Math.floor(k / STEPS.length), k % STEPS.length);
+    }
+    function play() {
+      $('#play').textContent = '❚❚ Pause';
+      timer = setInterval(() => {
+        if (photo === runs.length - 1 && step === STEPS.length - 1) return stop();
+        move(1);
+      }, 4500);
+    }
+    function stop() { clearInterval(timer); timer = null; $('#play').textContent = '▶ Play'; }
+
+    function images(r) {
+      const crops = r.detector?.crops || [];
+      if (step === 0 || step === 3) return [[r.boxes, 'Photo with the detector’s boxes']];
+      if (step === 1 && crops.length) return crops.map((c) => [c.src, 'Close-up of the ' + c.label + ' that Nemotron was shown']);
+      return [[r.file, r.title]];
+    }
+
+    function go(p, s) {
+      photo = p; step = s;
+      history.replaceState(null, '', `#${p + 1}-${s + 1}`);  // e.g. #2-3: photo 2, step 3, for bookmarking a step
+      const r = runs[p];
+      document.querySelectorAll('.picker button').forEach((b, i) => b.setAttribute('aria-pressed', i === p));
+      document.querySelectorAll('.steps button').forEach((b, i) => i === s ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current'));
+      const imgs = images(r);
+      $('.imgs').className = 'imgs' + (imgs.length > 1 ? ' two' : '');
+      $('.imgs').innerHTML = imgs.map(([src, alt]) => `<img src="${esc(src)}" alt="${esc(alt)}">`).join('');
+      const where = r.lat != null ? `${Math.abs(r.lat).toFixed(5)}° N, ${Math.abs(r.lon).toFixed(5)}° W`
+        : 'Location not stated by the source · not placed on the map';
+      $('.frame figcaption').innerHTML = `<span>${esc(r.taken)} · ${where}</span><a href="${esc(r.url)}">${esc(r.credit)} ↗</a>`;
+      $('.explain').innerHTML = `<h2>${STEPS[s]}</h2>` + [detector, waterline, compare, crossCheck, words][s](r);
+      $('.stamp').textContent = `Recorded ${new Date(r.analyzed_at).toLocaleString()} · ${r.model.split('/').pop()} · `
+        + `${reads(r).length} reads at once, ${r.elapsed_s} s · model output, not a measurement`;
+    }
+
+    function detector(r) {
+      const d = r.detector || {}, objs = d.objects;
+      const list = !Array.isArray(objs) ? `<p class="issue">${esc(d.error || 'Detector unavailable for this run.')}</p>`
+        : objs.length ? '<ul class="chips">' + objs.map((o) => `<li>${esc(o.label)} ${Math.round(o.score * 100)}%</li>`).join('') + '</ul>'
+        : '<p><strong>No vehicles, people or signs found.</strong> Nemotron reads the photo without close-ups.</p>';
+      return `<p class="lede">${esc(d.model || 'Object detector')}. Pretrained, not trained on floods.
+        It cannot see water: it finds objects whose height we know, so the depth has something to be read against.</p>${list}
+        <p class="lede">The two largest are cut out with a margin and sent to Nemotron as close-ups.</p>`;
+    }
+
+    function gauge(x) {
+      const row = rowFor(x.reference_object);
+      if (!row || x.fraction_low == null) {
+        return '<svg class="gauge" viewBox="0 0 44 120" aria-hidden="true"><rect x="8" y="10" width="28" height="100" class="hatch"/></svg>';
+      }
+      const y = (f) => 110 - 100 * f;
+      return `<svg class="gauge" viewBox="0 0 44 120" aria-hidden="true"><rect x="8" y="10" width="28" height="100" class="obj"/>
+        <rect x="8" y="${y(x.fraction_high)}" width="28" height="${100 * x.fraction_high}" class="range"/>
+        <rect x="8" y="${y(x.fraction_low)}" width="28" height="${100 * x.fraction_low}" class="water"/>
+        <line x1="2" x2="42" y1="10" y2="10" class="ref"/></svg>`;
+    }
+
+    function waterline(r) {
+      const rows = reads(r).map((x, i) => {
+        const row = rowFor(x.reference_object);
+        let text;
+        if (x.error && x.error.startsWith('model call failed')) text = '<span class="issue">This read failed: ' + esc(x.error) + '</span>';
+        else if (x.fraction_low == null) text = x.water_visible
+          ? 'Water seen, but it touches no object in the height table. <strong>Depth unknown.</strong>'
+          : '<strong>No floodwater seen.</strong>';
+        else if (!row) text = `Named “${esc(x.reference_object)}”, which is not in the height table. <span class="issue">Sent to review.</span>`;
+        else text = `<span class="math">Water reaches <strong>${n2(x.fraction_low)}–${n2(x.fraction_high)}</strong> of the way up to
+          the ${esc(row.name)} (${n2(row.height_m_low)}–${n2(row.height_m_high)} m)<br>→ depth
+          <strong>${span(x)}</strong></span>`;
+        return `<div class="read">${gauge(x)}<div><b>Read ${i + 1}</b>${text}</div></div>`;
+      }).join('');
+      return `<p class="lede">Nemotron picks a row of the sourced height table and says how far up it the water reaches.
+        Code does the multiplication, so the model never makes up a number in metres.
+        <span style="color:#d88e1a">- - -</span> marks the table’s point; blue is the water; hatched means no reference.</p>${rows}`;
+    }
+
+    function compare(r) {
+      const rs = reads(r);
+      const top = Math.max(0.6, ...rs.map((x) => x.depth_m_high ?? 0)) * 1.15;
+      const pct = (v) => (100 * v / top).toFixed(2) + '%';
+      const every = top > 1.2 ? 0.4 : top > 0.6 ? 0.2 : 0.1;
+      const ticks = [];
+      for (let v = 0; v <= top + 1e-9; v += every) ticks.push(`<span style="left:${pct(v)}">${v.toFixed(1)}</span>`);
+      const agreed = r.status !== 'needs_review' && r.depth_m_low != null && rs.length > 1;
+      const band = agreed ? `<div class="band" style="left:calc(3.6rem + (100% - 3.6rem) * ${r.depth_m_low / top});
+        width:calc((100% - 3.6rem) * ${(r.depth_m_high - r.depth_m_low) / top})" title="Range kept: ${span(r)}"></div>` : '';
+      const rows = rs.map((x, i) => `<div class="row">Read ${i + 1}<div class="track">${x.depth_m_low == null
+        ? `<span class="none">${x.error ? 'no reading' : x.water_visible ? 'water, depth unknown' : 'no water'}</span>`
+        : `<span class="bar" style="left:${pct(x.depth_m_low)};width:${pct(x.depth_m_high - x.depth_m_low)}" title="${span(x)}"></span>`}
+        </div></div>`).join('');
+      const verdict = r.status === 'needs_review'
+        ? `The reads don’t back one answer, so no depth is passed on.<br><span class="issue">${esc(r.error || '')}</span>`
+        : r.depth_m_low != null ? `The reads share a depth. The range kept is all of them together: <strong>${span(r)}</strong>. Routing plans on the top end.`
+        : rs.length > 1 ? 'The reads agree: no depth can be read from this photo.' : 'One read only.';
+      return `<p class="lede">The same photo goes to Nemotron ${rs.length === 1 ? 'once' : rs.length + ' times at once'}.
+        The answer is kept only if every read allows at least one common depth.</p>
+        <div class="axis">${band}${rows}<div class="ticks">${ticks.join('')}</div></div>
+        <p class="lede" style="text-align:right;margin:0">depth (m)</p>
+        <div class="verdict">${badge(r)}</div><p style="margin-top:.5rem">${verdict}</p>`;
+    }
+
+    function crossCheck(r) {
+      const objs = r.detector?.objects;
+      const lines = reads(r).map((x, i) => {
+        const ref = x.reference_object, low = String(ref || '').toLowerCase();
+        const need = NEEDS.find(([words]) => words.some((w) => low.includes(w)));
+        let mark = '–', cls = 'na', text;
+        if (x.error && x.error.includes('PyTorch detector found no')) { mark = '✗'; cls = 'no'; text = esc(x.error) + '. <strong>Sent to review.</strong>'; }
+        else if (!ref || x.depth_m_low == null) text = 'No depth was read, so there is nothing to check.';
+        else if (!need) text = `Measured against “${esc(ref)}”. The detector has no class for that, so there is nothing to check.`;
+        else if (!Array.isArray(objs)) text = 'Detector unavailable for this run.';
+        else {
+          const hit = objs.filter((o) => need[1].includes(o.label));
+          mark = '✓'; cls = 'yes';
+          text = `Measured against “${esc(ref)}”; the detector found a ${need[2]}: ${hit.map((o) => esc(o.label) + ' ' + Math.round(o.score * 100) + '%').join(', ')}.`;
+        }
+        return `<div class="check"><span class="mark ${cls}">${mark}</span><b>Read ${i + 1}.</b> ${text}</div>`;
+      }).join('');
+      return `<p class="lede">Two different models must agree. If Nemotron reads the water against a car, a person or a sign
+        that the detector did not find, the depth is dropped and the photo goes to a person.</p>${lines}
+        <div class="verdict">${badge(r)}</div>`;
+    }
+
+    function words(r) {
+      const quotes = reads(r).map((x, i) => x.reasoning
+        ? `<blockquote>“${esc(x.reasoning)}”<cite>Read ${i + 1}, word for word</cite></blockquote>`
+        : `<p class="issue">Read ${i + 1} returned no reasoning${x.error ? ': ' + esc(x.error) : ''}.</p>`).join('');
+      const depth = r.depth_m_low != null ? span(r) : 'unknown';
+      return `${quotes}<div class="verdict">${badge(r)} <span>Depth: <strong>${depth}</strong></span></div>
+        <p class="lede" style="margin-top:.6rem">A person confirms or rejects this before it counts.
+        It is never a road closure or a statement that a road is passable.</p>`;
+    }
+
+    const [hp, hs] = (location.hash.match(/^#(\d+)-(\d+)$/) || [0, 1, 1]).slice(1).map(Number);
+    go(Math.min(Math.max(hp, 1), runs.length) - 1, Math.min(Math.max(hs, 1), STEPS.length) - 1);
+  });
+  </script>
+</body>
+</html>

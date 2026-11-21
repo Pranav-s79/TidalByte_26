@@ -98,7 +98,7 @@ def test_thinking_switch_changes_the_request(monkeypatch):
     rp.post_chat([])
     monkeypatch.setenv("NEMOTRON_VL_THINKING", "off")
     rp.post_chat([])
-    assert sent[0]["max_tokens"] == 8192 and "chat_template_kwargs" not in sent[0]
+    assert sent[0]["max_tokens"] == 16384 and "chat_template_kwargs" not in sent[0]
     assert sent[1]["chat_template_kwargs"] == {"enable_thinking": False}
 
 
@@ -262,7 +262,7 @@ def test_reads_whose_ranges_do_not_meet_go_to_review(tmp_path):
 def test_depth_in_some_reads_but_not_others_goes_to_review(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
     o = read_photo(str(p), 29.68, -95.44, "t", client=replies(VALID, VALID, VALID.replace('"' + TIRE + '"', "null")))
-    assert o["status"] == "needs_review" and "disagree" in o["error"]
+    assert o["status"] == "needs_review" and "disagree" in o["error"] and "water, no depth" in o["error"]
 
 
 def test_one_failed_read_sends_the_photo_to_review(tmp_path):

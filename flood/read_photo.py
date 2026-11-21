@@ -29,9 +29,10 @@ PROMPT = """You inspect one street photo for flood water. Reply with ONE JSON ob
 Rules:
 - Each row of this table is a point on an object and its height above the ground:
 {table}
-- Pick the row whose object the waterline touches. fraction_low and fraction_high say how far the water reaches
-  from the ground (0) up to that point (1): water a third of the way up to the top of a tire is about 0.3-0.4.
-  Code turns the fraction into a depth, so do not give a depth yourself.
+- Pick the row whose object the waterline touches. fraction_low and fraction_high are the water depth divided by
+  that row's height: 0 = ground, 1 = water exactly at the row's point, 0.5 = halfway from the ground up to it.
+  Water a third of the way up to the top of a tire is about 0.3-0.4. Code turns the fraction into a depth, so do
+  not give a depth yourself.
 - If the waterline touches no object in the table, or is above every point you can see, set reference_object,
   fraction_low and fraction_high to null.
 - Give a range, never a single number. Do not guess the location. List only obstacles that block a road.
@@ -103,7 +104,9 @@ def parse_reading(raw, heights=None):
 
 
 def _span(r):
-    return f"{r['depth_m_low']}-{r['depth_m_high']} m" if r["depth_m_low"] is not None else "no depth"
+    if r["depth_m_low"] is not None:
+        return f"{r['depth_m_low']}-{r['depth_m_high']} m"
+    return "water, no depth" if r["water_visible"] else "no water"
 
 
 def combine(reads):
@@ -196,7 +199,7 @@ def post_chat(messages):
         raise RuntimeError("NVIDIA_API_KEY is not set")
     payload = {"model": os.environ.get("NEMOTRON_VL_MODEL", DEFAULT_MODEL), "messages": messages, "temperature": 0}
     if thinking_on():
-        payload["max_tokens"] = 8192  # Super VL reasons first: 2,500-6,100 tokens over 5 runs of one photo
+        payload["max_tokens"] = 16384  # Super VL reasons first: 2 of 15 reads used all of 8192 on Nov 21
     else:
         payload.update(max_tokens=1024, chat_template_kwargs={"enable_thinking": False})
     r = requests.post(ENDPOINT, timeout=180, headers={"Authorization": f"Bearer {key}"}, json=payload)
@@ -241,19 +244,16 @@ def cross_check(reading, objects):
 CROP_ROOT = os.path.join("cache", "crops")  # gitignored; one folder of crops per observation
 
 
-def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, baseline_path=None, heights=None,
-               extra_prompt="", reads=None):
-    """One frame in, one observation out.
+def read_image(photo_path, client=post_chat, detector=None, baseline_path=None, heights=None, extra_prompt="",
+               reads=None, crop_dir=None):
+    """Detector, then Nemotron's reads of one image -> reading plus "detector". No location: read_photo adds it.
 
     detector(path, crop_dir) -> (detections, crops), e.g. flood.detect.detect. baseline_path is the same
     camera's dry frame; heights is that camera's reference-height table. reads: how many times Nemotron reads
-    the frame, all at once (default NEMOTRON_VL_READS or 3); see combine().
+    the image, all at once (default NEMOTRON_VL_READS or 3); see combine().
     """
     reads = reads or int(os.environ.get("NEMOTRON_VL_READS", READS))
-    if lat is None or lon is None:
-        raise ValueError("photo has no location: rejected (never guess one)")
     data = open(photo_path, "rb").read()
-    obs_id = "obs-" + hashlib.sha1(data).hexdigest()[:10]
     baseline = None
     if baseline_path:
         baseline = (open(baseline_path, "rb").read(), mimetypes.guess_type(baseline_path)[0] or "image/jpeg")
@@ -261,7 +261,7 @@ def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, 
     if detector is not None:
         name = getattr(detector, "model_name", getattr(detector, "__name__", "detector"))
         try:
-            objects, crops = detector(photo_path, os.path.join(CROP_ROOT, obs_id))
+            objects, crops = detector(photo_path, crop_dir)
             det = {"model": name, "objects": objects, "crops": [c.get("path") for c in crops]}
         except Exception as e:  # the detector is a second opinion; Nemotron still reads the photo without it
             det = {"model": name, "objects": None, "crops": [], "error": f"detector failed: {e}"}
@@ -276,8 +276,18 @@ def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, 
 
     with ThreadPoolExecutor(reads) as pool:  # at the same time: three reads take about as long as one
         reading = combine(list(pool.map(one_read, range(reads))))
-    return {"id": obs_id, "lat": lat, "lon": lon, "taken_at": taken_at,
-            "photo": photo_path, **reading, "detector": det,
+    return {**reading, "detector": det}
+
+
+def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, baseline_path=None, heights=None,
+               extra_prompt="", reads=None):
+    """One frame in, one observation out: read_image plus where and when. A photo with no location is rejected."""
+    if lat is None or lon is None:
+        raise ValueError("photo has no location: rejected (never guess one)")
+    obs_id = "obs-" + hashlib.sha1(open(photo_path, "rb").read()).hexdigest()[:10]
+    reading = read_image(photo_path, client, detector, baseline_path, heights, extra_prompt, reads,
+                         os.path.join(CROP_ROOT, obs_id))
+    return {"id": obs_id, "lat": lat, "lon": lon, "taken_at": taken_at, "photo": photo_path, **reading,
             "model": os.environ.get("NEMOTRON_VL_MODEL", DEFAULT_MODEL)}
 
 
