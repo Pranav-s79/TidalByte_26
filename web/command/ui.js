@@ -64,6 +64,34 @@ export function setBuilt(meta) {
   el.hidden = false;
 }
 
+// ---------------------------------------------------------------- map appearance
+export function setupMapMode({ available, onChange, onError }) {
+  const buttons = [...document.querySelectorAll('[data-map-mode]')];
+  const photo = buttons.find((b) => b.dataset.mapMode === 'photorealistic');
+  if (!available && photo) {
+    photo.disabled = true;
+    photo.title = 'Add CESIUM_ION_TOKEN to web/config.local.js to enable this mode';
+  }
+  for (const button of buttons) {
+    button.addEventListener('click', async () => {
+      if (button.disabled || button.getAttribute('aria-pressed') === 'true') return;
+      buttons.forEach((b) => { b.disabled = true; });
+      button.dataset.loading = 'true';
+      try {
+        await onChange(button.dataset.mapMode);
+        buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+      } catch (error) {
+        onError?.(error);
+      } finally {
+        delete button.dataset.loading;
+        buttons.forEach((b) => {
+          b.disabled = b.dataset.mapMode === 'photorealistic' && !available;
+        });
+      }
+    });
+  }
+}
+
 // ---------------------------------------------------------------- left panel
 export function renderStats({ meta, pins, roads }) {
   const host = $('#stats');

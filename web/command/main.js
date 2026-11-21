@@ -1,9 +1,12 @@
 // Command center entry: loads the replay layers, builds the 3D scene and wires the panels.
-import { loadCore, loadBuildings, loadContext, loadCameras, reloadPins, postReview, pinId } from './data.js';
+import { loadCore, loadBuildings, loadContext, loadCameras, loadPhotorealisticData, reloadPins, postReview, pinId } from './data.js';
 import { createScene } from './scene.js';
+import { createPhotorealisticLayer } from './photorealistic.js';
 import * as ui from './ui.js';
 
 const state = { data: {}, selected: null, closures: new Map(), playing: false, step: 3, timer: null };
+let photorealisticLayer = null;
+let photorealisticLoad = null;
 
 // Analysis replay: how the picture is built from evidence. Not a time series: high-water marks
 // record the peak only, so there is no recorded flood progression to replay.
@@ -146,6 +149,34 @@ async function refreshPins() {
   if (added || old.size !== fresh.features.length) renderLists();
 }
 
+async function setMapMode(mode) {
+  if (mode === 'operational') {
+    scene.setMode('operational');
+    ui.setStatus('ok', 'Operational map');
+    ui.toast('Operational map enabled.', 'info', 2200);
+    scene.flyOverview({ duration: 1.8 });
+    return;
+  }
+  if (!window.CESIUM_ION_TOKEN) throw new Error('Photorealistic mode needs web/config.local.js with CESIUM_ION_TOKEN');
+  ui.setStatus('loading', 'Loading photorealistic city');
+  if (!photorealisticLayer) {
+    photorealisticLoad ||= (async () => {
+      const extra = await loadPhotorealisticData();
+      return createPhotorealisticLayer(scene.viewer, { ...state.data, ...extra }, window.CESIUM_ION_TOKEN);
+    })();
+    try {
+      photorealisticLayer = await photorealisticLoad;
+    } catch (error) {
+      photorealisticLoad = null;
+      throw error;
+    }
+  }
+  scene.setMode('photorealistic', photorealisticLayer);
+  ui.setStatus('ok', 'Photorealistic city loaded');
+  ui.toast(`Photorealistic mode: ${photorealisticLayer.alignment.how}.`, 'info', 5200);
+  scene.flyOverview({ duration: 2.2 });
+}
+
 // ---------------------------------------------------------------- boot
 (async () => {
   ui.renderDetails(null, ctx());
@@ -188,6 +219,16 @@ async function refreshPins() {
     ui.toast('3D buildings could not load. Flood layers still work.', 'error', 6000);
     console.error('[command] buildings', e);
   }
+
+  ui.setupMapMode({
+    available: Boolean(window.CESIUM_ION_TOKEN),
+    onChange: setMapMode,
+    onError: (error) => {
+      ui.setStatus('warn', 'Photorealistic mode unavailable');
+      ui.toast(`Could not switch map mode: ${error.message}`, 'error', 8000);
+      console.error('[command] map mode', error);
+    },
+  });
 
   ui.hideLoader();
   scene.flyOverview({ duration: 3.2 });

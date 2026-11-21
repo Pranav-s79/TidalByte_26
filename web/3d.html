@@ -30,6 +30,10 @@
       <span class="tb-label">Event</span>
       <span class="replay-chip">REPLAY · Hurricane Harvey, Aug 2017</span>
     </div>
+    <div class="mode-switch" role="group" aria-label="Map appearance">
+      <button type="button" data-map-mode="operational" aria-pressed="true">Operational</button>
+      <button type="button" data-map-mode="photorealistic" aria-pressed="false">Photorealistic</button>
+    </div>
     <div class="tb-spacer"></div>
     <div class="status" id="sys-status" data-kind="loading" role="status"><span class="dot" aria-hidden="true"></span><span class="st-text">Loading data</span></div>
     <div class="status subtle tb-built" id="sys-built" hidden><span data-icon="activity"></span><span class="st-text"></span></div>
@@ -160,6 +164,7 @@
 
   <noscript><p class="noscript">The command center needs JavaScript and WebGL.</p></noscript>
   <script src="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Cesium.js"></script>
+  <script src="config.local.js" onerror="window.CESIUM_ION_TOKEN = ''"></script>
   <script type="module" src="command/main.js"></script>
 </body>
 </html>

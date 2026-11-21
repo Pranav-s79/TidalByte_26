@@ -100,12 +100,14 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   void onTileError;
   viewer.creditDisplay.addStaticCredit(new Cesium.Credit('Buildings, roads & water © OpenStreetMap contributors (ODbL)', false));
 
-  const layers = { buildings: [], water: [], roads: [], evidence: [], unknown: [] };
+  const layers = { context: [], buildings: [], water: [], roads: [], evidence: [], unknown: [] };
   const pins = new Map();           // id → { feature, tier, entities: {...}, color }
   const closures = new Map();       // osm_id → [entities]
   let selected = null;
   let hoverEnt = null;
   let selectEnt = null;
+  let mode = 'operational';
+  let photorealisticLayer = null;
 
   // ---------------------------------------------------------------- ground plate (context)
   // A slightly lifted navy plate over the replay box with a faint 100 m survey grid, plus OSM water
@@ -113,11 +115,15 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   function addContext(ctx, bbox) {
     const pad = 0.004;
     const rect = Cesium.Rectangle.fromDegrees(bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad);
-    const plate = (material, height) => scene.primitives.add(new Cesium.Primitive({
-      geometryInstances: new Cesium.GeometryInstance({ geometry: new Cesium.RectangleGeometry({ rectangle: rect, height,
-        vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT }) }),
-      appearance: new Cesium.EllipsoidSurfaceAppearance({ material, aboveGround: false, translucent: true }),
-      allowPicking: false, asynchronous: true }));
+    const plate = (material, height) => {
+      const prim = scene.primitives.add(new Cesium.Primitive({
+        geometryInstances: new Cesium.GeometryInstance({ geometry: new Cesium.RectangleGeometry({ rectangle: rect, height,
+          vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT }) }),
+        appearance: new Cesium.EllipsoidSurfaceAppearance({ material, aboveGround: false, translucent: true }),
+        allowPicking: false, asynchronous: true }));
+      layers.context.push({ prim });
+      return prim;
+    };
     plate(Cesium.Material.fromType('Color', { color: C('#0c1628', 0.96) }), 0);
     const kmX = Cesium.Cartesian3.distance(Cesium.Cartesian3.fromDegrees(rect.west * 180 / Math.PI, bbox[1]),
       Cesium.Cartesian3.fromDegrees(rect.east * 180 / Math.PI, bbox[1])) / 1000;
@@ -127,21 +133,27 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
       lineCount: new Cesium.Cartesian2(Math.round(kmX * 10), Math.round(kmY * 10)), lineThickness: new Cesium.Cartesian2(1, 1) }), 0.02);
     // plate edge
     const [w, s, e, n] = [rect.west, rect.south, rect.east, rect.north].map((r) => r * 180 / Math.PI);
-    viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArrayHeights([w, s, 0.1, e, s, 0.1, e, n, 0.1, w, n, 0.1, w, s, 0.1]),
+    const edge = viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArrayHeights([w, s, 0.1, e, s, 0.1, e, n, 0.1, w, n, 0.1, w, s, 0.1]),
       width: 1.2, material: C('#7dd3fc', 0.22), arcType: Cesium.ArcType.NONE } });
+    layers.context.push({ entity: edge });
 
-    const fill = (rings, color, height) => rings.length && scene.primitives.add(new Cesium.Primitive({
-      allowPicking: false, asynchronous: true,
-      geometryInstances: rings.filter((r) => r.length >= 6).map((r) => new Cesium.GeometryInstance({
-        geometry: new Cesium.PolygonGeometry({ polygonHierarchy: new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(r)),
-          height, vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT }) })),
-      appearance: new Cesium.EllipsoidSurfaceAppearance({ material: Cesium.Material.fromType('Color', { color }), aboveGround: true, translucent: true }),
-    }));
+    const fill = (rings, color, height) => {
+      if (!rings.length) return null;
+      const prim = scene.primitives.add(new Cesium.Primitive({
+        allowPicking: false, asynchronous: true,
+        geometryInstances: rings.filter((r) => r.length >= 6).map((r) => new Cesium.GeometryInstance({
+          geometry: new Cesium.PolygonGeometry({ polygonHierarchy: new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(r)),
+            height, vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT }) })),
+        appearance: new Cesium.EllipsoidSurfaceAppearance({ material: Cesium.Material.fromType('Color', { color }), aboveGround: true, translucent: true }),
+      }));
+      layers.context.push({ prim });
+      return prim;
+    };
     fill(ctx.parks || [], C('#10241f', 0.75), 0.03);
     fill(ctx.water_areas || [], C('#0f2a47', 0.95), 0.035);
     const ways = (ctx.waterways || []).filter((wy) => wy[2].length >= 4);
     if (ways.length) {
-      scene.primitives.add(new Cesium.Primitive({
+      const waterways = scene.primitives.add(new Cesium.Primitive({
         allowPicking: false, asynchronous: true,
         geometryInstances: ways.map(([kind, , coords]) => new Cesium.GeometryInstance({
           geometry: new Cesium.PolylineGeometry({ positions: Cesium.Cartesian3.fromDegreesArrayHeights(
@@ -151,6 +163,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
         })),
         appearance: new Cesium.PolylineColorAppearance({ translucent: true }),
       }));
+      layers.context.push({ prim: waterways });
     }
   }
 
@@ -365,8 +378,10 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   // ---------------------------------------------------------------- highlight overlays
   function lineEntity(coords, color, width, glow = true) {
     return viewer.entities.add({ polyline: {
-      positions: Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ROAD_H + 0.3])),
-      width, arcType: Cesium.ArcType.NONE,
+      positions: mode === 'photorealistic'
+        ? Cesium.Cartesian3.fromDegreesArray(coords.flat())
+        : Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ROAD_H + 0.3])),
+      width, arcType: Cesium.ArcType.NONE, clampToGround: mode === 'photorealistic',
       material: glow ? new Cesium.PolylineGlowMaterialProperty({ color, glowPower: 0.35, taperPower: 1 }) : color,
     } });
   }
@@ -416,8 +431,8 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
 
   // ---------------------------------------------------------------- layer visibility (with fades)
   const layerOn = { buildings: true, water: true, roads: true, evidence: true, unknown: true };
-  function setLayer(name, on, { animate = true } = {}) {
-    layerOn[name] = on;
+  function applyOperationalLayer(name, on, animate = false) {
+    if (!layers[name]) return;
     for (const it of layers[name]) {
       if (it.entity) {
         const isLabel = !!it.entity.label;
@@ -433,6 +448,29 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
         it.prim.show = on;
       }
     }
+  }
+  function setLayer(name, on, { animate = true } = {}) {
+    layerOn[name] = on;
+    if (mode === 'operational') applyOperationalLayer(name, on, animate);
+    else photorealisticLayer?.setLayer(name, on);
+  }
+
+  function setMode(next, layer = photorealisticLayer) {
+    if (next !== 'operational' && next !== 'photorealistic') throw new Error(`Unknown map mode: ${next}`);
+    if (next === 'photorealistic' && !layer) throw new Error('Photorealistic layer is not ready');
+    photorealisticLayer = layer;
+    mode = next;
+    const operational = mode === 'operational';
+    scene.globe.show = operational;
+    applyOperationalLayer('context', operational);
+    for (const name of ['buildings', 'water', 'roads', 'evidence', 'unknown']) {
+      applyOperationalLayer(name, operational && layerOn[name]);
+      photorealisticLayer?.setLayer(name, layerOn[name]);
+    }
+    photorealisticLayer?.setVisible(!operational);
+    for (const entities of closures.values()) for (const entity of entities) entity.show = operational;
+    if (selectEnt) { viewer.entities.remove(selectEnt); selectEnt = null; }
+    if (selected && selected.kind !== 'pin') selectEnt = outline(selected);
   }
 
   // ---------------------------------------------------------------- camera
@@ -501,7 +539,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   });
 
   return {
-    viewer, addContext, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, select, setClosure, pulseRing,
+    viewer, addContext, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
     flyOverview, flyToPoint, flyToFeature, streetLevel, topDown, intro,
     // Orbit around the point at screen centre until north is up, keeping tilt and distance.
     resetNorth: () => {
@@ -524,5 +562,6 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     pinInfo: (id) => { const g = pins.get(id); return g ? { kind: 'pin', id, feature: g.feature, tier: g.tier } : null; },
     onPick: (fn) => { onPick = fn; }, onHover: (fn) => { onHover = fn; },
     layerState: () => ({ ...layerOn }),
+    mapMode: () => mode,
   };
 }

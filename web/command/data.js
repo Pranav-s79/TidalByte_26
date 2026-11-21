@@ -67,6 +67,13 @@ export async function loadCore() {
 
 export const loadBuildings = () => getJson('assets/buildings.json');
 export const loadContext = () => getJson('assets/context.json');
+export async function loadPhotorealisticData() {
+  const [surface, samples] = await Promise.all([
+    getJson('data/water_surface.geojson'),
+    getJson('data/ground_samples.json'),
+  ]);
+  return { surface, samples };
+}
 
 // Camera catalog is planned (Prince: data/cameras.json, copied to web/data/ for the page).
 // Accepts a list or {cameras: [...]}; returns [] when the file isn't there yet.
