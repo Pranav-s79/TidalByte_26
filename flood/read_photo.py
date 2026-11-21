@@ -83,26 +83,44 @@ def parse_reading(raw):
             "status": "ai_proposed", "error": None}
 
 
+def _box(box):
+    return "[" + ",".join(str(v) for v in box) + "]"
+
+
 def _detector_note(objects):
-    """Tell Nemotron what the PyTorch detector boxed, so it reads the waterline against real objects."""
+    """The PyTorch detector's boxes as text, e.g. "car at [330,357,826,686], score 0.91"."""
     if objects is None:
         return ""
     if not objects:
-        return "\nA PyTorch object detector found no people, vehicles or signs in this photo."
-    rows = "\n".join(f"  - {o['label']} ({o['score']:.2f}): left {o['box'][0]:.0%}, top {o['box'][1]:.0%}, "
-                     f"right {o['box'][2]:.0%}, bottom {o['box'][3]:.0%} of the image" for o in objects)
-    return ("\nA PyTorch object detector boxed these objects. It cannot see water, so judge the waterline "
-            "yourself, and prefer reading it against these objects:\n" + rows)
+        return "\nA PyTorch object detector found no vehicles, people or signs in the current frame."
+    rows = "\n".join(f"  - {o['label']} at {_box(o['box'])}, score {o['score']:.2f}" for o in objects)
+    return ("\nA PyTorch object detector found these objects in the current frame (pixel boxes [x1,y1,x2,y2]). "
+            "It cannot see water. Judge the waterline against these objects:\n" + rows)
 
 
-def _messages(photo_bytes, photo_path, objects=None):
-    table = "\n".join(f"  - {r['name']}: {r['height_m_low']}-{r['height_m_high']} m"
-                      for r in json.load(open(REF_PATH)))
-    mime = mimetypes.guess_type(photo_path)[0] or "image/jpeg"
-    url = f"data:{mime};base64,{base64.b64encode(photo_bytes).decode()}"
-    # ponytail: OpenAI-style image_url content; check against the Nemotron VL docs if the endpoint rejects it
-    return [{"role": "user", "content": [{"type": "text", "text": PROMPT.format(table=table) + _detector_note(objects)},
-                                         {"type": "image_url", "image_url": {"url": url}}]}]
+def _image(data, mime):
+    return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{base64.b64encode(data).decode()}"}}
+
+
+def _messages(photo_bytes, photo_path, objects=None, crops=None, baseline=None, heights=None):
+    """Prompt + current frame, then the dry baseline frame and the detector's close-up crops when we have them.
+
+    heights: the camera's reference heights (from data/cameras.json); default data/reference_heights.json.
+    baseline: (bytes, mime) of the same camera's dry frame.
+    """
+    rows = heights if heights is not None else json.load(open(REF_PATH))
+    table = "\n".join(f"  - {r['name']}: {r['height_m_low']}-{r['height_m_high']} m" for r in rows)
+    text = PROMPT.format(table=table) + _detector_note(objects)
+    if baseline is not None or crops:
+        text += "\nThe first image is the current frame."
+    content = [{"type": "text", "text": text}, _image(photo_bytes, mimetypes.guess_type(photo_path)[0] or "image/jpeg")]
+    if baseline is not None:
+        content += [{"type": "text", "text": "Dry baseline frame from the same camera, with no flood. "
+                                             "Compare the current frame against it:"}, _image(*baseline)]
+    for c in crops or []:
+        content += [{"type": "text", "text": f"Close-up of the {c['label']} at {_box(c['box'])} "
+                                             "(padded crop of the current frame):"}, _image(c["jpeg"], "image/jpeg")]
+    return [{"role": "user", "content": content}]
 
 
 def thinking_on():
@@ -163,36 +181,64 @@ def cross_check(reading, objects):
     return reading  # e.g. a curb: the detector has no class for it, so there is nothing to check
 
 
-def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None):
+CROP_ROOT = os.path.join("cache", "crops")  # gitignored; one folder of crops per observation
+
+
+def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None, baseline_path=None, heights=None):
+    """One frame in, one observation out.
+
+    detector(path, crop_dir) -> (detections, crops), e.g. flood.detect.detect. baseline_path is the same
+    camera's dry frame; heights is that camera's reference-height table.
+    """
     if lat is None or lon is None:
         raise ValueError("photo has no location: rejected (never guess one)")
     data = open(photo_path, "rb").read()
-    objects, det = None, None
+    obs_id = "obs-" + hashlib.sha1(data).hexdigest()[:10]
+    baseline = None
+    if baseline_path:
+        baseline = (open(baseline_path, "rb").read(), mimetypes.guess_type(baseline_path)[0] or "image/jpeg")
+    objects, crops, det = None, [], None
     if detector is not None:
         name = getattr(detector, "model_name", getattr(detector, "__name__", "detector"))
         try:
-            objects = detector(photo_path)
-            det = {"model": name, "objects": objects}
+            objects, crops = detector(photo_path, os.path.join(CROP_ROOT, obs_id))
+            det = {"model": name, "objects": objects, "crops": [c.get("path") for c in crops]}
         except Exception as e:  # the detector is a second opinion; Nemotron still reads the photo without it
-            det = {"model": name, "objects": None, "error": f"detector failed: {e}"}
+            det = {"model": name, "objects": None, "crops": [], "error": f"detector failed: {e}"}
     try:
-        reading = cross_check(parse_reading(client(_messages(data, photo_path, objects))), objects)
+        messages = _messages(data, photo_path, objects, crops, baseline, heights)
+        reading = cross_check(parse_reading(client(messages)), objects)
     except Exception as e:  # network/auth/endpoint failure must not crash the pipeline
         reading = _empty(f"model call failed: {e}")
-    return {"id": "obs-" + hashlib.sha1(data).hexdigest()[:10], "lat": lat, "lon": lon, "taken_at": taken_at,
+    return {"id": obs_id, "lat": lat, "lon": lon, "taken_at": taken_at,
             "photo": photo_path, **reading, "detector": det,
             "model": os.environ.get("NEMOTRON_VL_MODEL", DEFAULT_MODEL)}
 
 
-def _default_detector():
-    try:
-        import torch  # noqa: F401  (check once here, not per photo)
+def camera_heights(camera_id, path="data/cameras.json"):
+    """The camera's "reference_heights" rows from cameras.json (same format as data/reference_heights.json).
 
-        from flood.detect import detect
-        return detect
+    Returns None, so the default table is used, if the camera has no rows of its own.
+    """
+    cameras = json.load(open(path))
+    cameras = cameras.get("cameras", cameras) if isinstance(cameras, dict) else cameras
+    cam = next((c for c in cameras if str(c.get("id")) == str(camera_id)), None)
+    if cam is None:
+        raise ValueError(f"camera {camera_id!r} is not in {path}")
+    return cam.get("reference_heights")
+
+
+def _default_detector():
+    """Load the detector once at startup, or None if PyTorch isn't installed."""
+    try:
+        import torch  # noqa: F401
+
+        from flood import detect
+        detect.load()
+        return detect.detect
     except ImportError:
-        print("note: PyTorch is not installed (pip install -r requirements-detector.txt); "
-              "reading without the detector", file=sys.stderr)
+        print("note: PyTorch is not installed (pip install -r requirements.txt); reading without the detector",
+              file=sys.stderr)
         return None
 
 
@@ -221,8 +267,16 @@ def main():
     p.add_argument("--out", default="data/observations.json")
     p.add_argument("--dry-run", action="store_true", help="print only; use for photos whose location you don't know")
     p.add_argument("--no-detector", action="store_true", help="skip the PyTorch object detector")
+    p.add_argument("--camera", help="camera id in data/cameras.json; its reference_heights replace the default table")
+    p.add_argument("--baseline", help="dry baseline frame from the same camera, sent with the current frame")
     a = p.parse_args()
-    obs = read_photo(a.photo, a.lat, a.lon, a.taken_at, detector=None if a.no_detector else _default_detector())
+    heights = None
+    if a.camera:
+        heights = camera_heights(a.camera)
+        if heights is None:
+            print(f"note: camera {a.camera} has no reference_heights; using data/reference_heights.json", file=sys.stderr)
+    detector = None if a.no_detector else _default_detector()
+    obs = read_photo(a.photo, a.lat, a.lon, a.taken_at, detector=detector, baseline_path=a.baseline, heights=heights)
     print(json.dumps(obs, indent=2))
     if a.dry_run:
         return

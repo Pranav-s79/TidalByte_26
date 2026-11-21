@@ -119,47 +119,92 @@ def test_rerun_refreshes_ai_reading_but_never_a_reviewed_one(tmp_path):
     assert json.load(open(path)) == [{"id": "obs-1", "status": "confirmed"}]
 
 
-# --- PyTorch detector as a second opinion (no torch needed for these tests) ---
+# --- PyTorch detector (flood/detect.py): no torch needed for these tests ---
 
-CAR = {"label": "car", "score": 0.97, "box": [0.26, 0.38, 0.64, 0.68]}
+from PIL import Image
 
+from flood.detect import debug_draw, keep, make_crops, padded_box
 
-def test_to_objects_keeps_reference_classes_as_fractions():
-    from flood.detect import to_objects
-    categories = ["__background__", "person", "car", "dog"]
-    objs = to_objects([[0, 0, 100, 50], [10, 10, 20, 20], [0, 0, 1, 1]], [2, 3, 1], [0.9, 0.99, 0.3],
-                      categories, width=200, height=100)
-    assert objs == [{"label": "car", "score": 0.9, "box": [0.0, 0.0, 0.5, 0.5]}]  # dog: not a reference; person: low score
+CAR = {"label": "car", "score": 0.91, "box": [330, 357, 826, 686]}
 
 
-def test_detector_boxes_go_into_the_prompt():
-    text = rp._messages(b"x", "a.jpg", [CAR])[0]["content"][0]["text"]
-    assert "car (0.97): left 26%, top 38%, right 64%, bottom 68%" in text
+def test_keep_filters_classes_and_score_with_pixel_boxes():
+    categories = ["__background__", "person", "car", "dog", "bench"]
+    objs = keep([[0, 0, 100.4, 50.6], [10, 10, 20, 20], [0, 0, 1, 1], [5, 5, 9, 9]], [2, 3, 1, 4],
+                [0.91, 0.99, 0.59, 0.95], categories)
+    assert objs == [{"label": "car", "score": 0.91, "box": [0, 0, 100, 51]}]  # dog/bench not kept; person under 0.6
+
+
+def test_padded_box_grows_20_percent_and_stays_in_the_image():
+    assert padded_box([100, 100, 200, 150], 1000, 1000) == [80, 90, 220, 160]
+    assert padded_box([0, 0, 100, 100], 110, 110) == [0, 0, 110, 110]
+
+
+def test_crops_saved_for_every_object_and_two_largest_returned(tmp_path):
+    img = Image.new("RGB", (400, 300), "white")
+    dets = [{"label": "person", "score": 0.9, "box": [10, 10, 30, 60]},          # 1,000 px
+            {"label": "car", "score": 0.8, "box": [100, 100, 300, 200]},         # 20,000 px
+            {"label": "stop sign", "score": 0.7, "box": [320, 20, 380, 80]}]     # 3,600 px
+    crops = make_crops(img, dets, str(tmp_path))
+    assert [c["label"] for c in crops] == ["car", "stop sign"]
+    assert crops[0]["crop_box"] == [60, 80, 340, 220] and crops[0]["jpeg"][:2] == b"\xff\xd8"
+    assert len(list(tmp_path.iterdir())) == 3
+
+
+def test_debug_draw_saves_a_boxed_copy(tmp_path):
+    src = tmp_path / "frame.png"; Image.new("RGB", (400, 300), "white").save(src)
+    out = debug_draw(str(src), [{"label": "car", "score": 0.91, "box": [100, 100, 300, 200]}], str(tmp_path / "debug.png"))
+    drawn = Image.open(out)
+    assert drawn.size == (400, 300) and drawn.getpixel((200, 200)) != (255, 255, 255)  # bottom edge of the box
+    assert Image.open(src).getpixel((200, 200)) == (255, 255, 255)                     # original untouched
+
+
+def test_super_vl_gets_frame_baseline_crops_boxes_and_camera_heights():
+    crops = [{"label": "car", "score": 0.91, "box": [330, 357, 826, 686], "jpeg": b"crop1"},
+             {"label": "person", "score": 0.8, "box": [1, 2, 3, 4], "jpeg": b"crop2"}]
+    heights = [{"name": "jersey barrier, top", "height_m_low": 0.8, "height_m_high": 0.84, "source": "x"}]
+    content = rp._messages(b"frame", "a.jpg", [CAR], crops, (b"dry", "image/jpeg"), heights)[0]["content"]
+    text = content[0]["text"]
+    assert "car at [330,357,826,686], score 0.91" in text and "jersey barrier, top: 0.8-0.84 m" in text
+    images = [part["image_url"]["url"] for part in content if part["type"] == "image_url"]
+    assert [base64.b64decode(u.split(",")[1]) for u in images] == [b"frame", b"dry", b"crop1", b"crop2"]
+
+
+def test_camera_heights_come_from_cameras_json(tmp_path):
+    path = tmp_path / "cameras.json"
+    path.write_text(json.dumps([{"id": "cam-1", "reference_heights": [{"name": "curb"}]}, {"id": "cam-2"}]))
+    assert rp.camera_heights("cam-1", str(path)) == [{"name": "curb"}]
+    assert rp.camera_heights("cam-2", str(path)) is None
+    with pytest.raises(ValueError):
+        rp.camera_heights("cam-9", str(path))
 
 
 def test_depth_against_a_vehicle_the_detector_missed_needs_review(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
-    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID, detector=lambda path: [])
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID,
+                   detector=lambda path, crop_dir: ([], []))
     assert o["status"] == "needs_review" and o["depth_m_low"] is None and "found no vehicle" in o["error"]
 
 
 def test_depth_against_a_detected_vehicle_stands(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
-    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID, detector=lambda path: [CAR])
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID,
+                   detector=lambda path, crop_dir: ([CAR], []))
     assert o["status"] == "ai_proposed" and o["depth_m_low"] == 0.35 and o["detector"]["objects"] == [CAR]
 
 
 def test_curb_reading_has_nothing_to_cross_check(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
     curb = VALID.replace('"sedan tire"', '"street curb, top of curb face"')
-    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: curb, detector=lambda path: [])
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: curb,
+                   detector=lambda path, crop_dir: ([], []))
     assert o["status"] == "ai_proposed"
 
 
 def test_detector_failure_still_reads_the_photo(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
 
-    def broken(path):
+    def broken(path, crop_dir):
         raise OSError("not an image")
 
     o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID, detector=broken)
