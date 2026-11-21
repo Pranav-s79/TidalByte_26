@@ -72,6 +72,17 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   if (scene.moon) scene.moon.show = false;
   scene.screenSpaceCameraController.minimumZoomDistance = 40;
   scene.screenSpaceCameraController.maximumZoomDistance = 30000;
+  scene.screenSpaceCameraController.enableRotate = true;
+  scene.screenSpaceCameraController.enableTilt = true;
+  scene.screenSpaceCameraController.enableZoom = true;
+  scene.screenSpaceCameraController.rotateEventTypes = [Cesium.CameraEventType.LEFT_DRAG];
+  scene.screenSpaceCameraController.zoomEventTypes = [Cesium.CameraEventType.WHEEL, Cesium.CameraEventType.PINCH];
+  scene.screenSpaceCameraController.tiltEventTypes = [
+    Cesium.CameraEventType.MIDDLE_DRAG,
+    { eventType: Cesium.CameraEventType.LEFT_DRAG, modifier: Cesium.KeyboardEventModifier.CTRL },
+  ];
+  scene.screenSpaceCameraController.inertiaSpin = 0.7;
+  scene.screenSpaceCameraController.inertiaZoom = 0.75;
 
   // Soft key light from the south-west so building faces read in 3D.
   const enu = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(...CENTER));

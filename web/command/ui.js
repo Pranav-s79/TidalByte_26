@@ -198,7 +198,7 @@ export function renderDetails(sel, ctx) {
       h('div', { class: 'empty-text' }, 'Click a gauge, a road or a flooded area to see its evidence, depth range and confidence.'),
       h('ul', { class: 'hint-list' },
         h('li', {}, h('kbd', {}, 'Click'), ' gauge or road for evidence'),
-        h('li', {}, h('kbd', {}, 'Drag'), ' to pan · ', h('kbd', {}, 'Right-drag'), ' to zoom'),
+        h('li', {}, h('kbd', {}, 'Drag'), ' to rotate · two-finger scroll to zoom'),
         h('li', {}, h('kbd', {}, 'Ctrl'), '+drag to tilt · ', h('kbd', {}, 'Esc'), ' to deselect'))));
     return;
   }
