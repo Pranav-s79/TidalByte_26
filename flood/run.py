@@ -140,6 +140,24 @@ def build_outputs(marks_csv, dem_tif, roads_geojson, observations_json, out_dir,
     return meta
 
 
+CAMERA_FIELDS = ("id", "road", "cross_street", "lat", "lon", "near_lane_direction", "inside_replay_bbox", "dry_baseline")
+
+
+def publish_cameras(catalog="data/cameras.json", out_dir="web/data"):
+    """Copy the camera catalog's display fields to web/data/cameras.json for the 3D page.
+    Snapshot URLs are left out: TxDOT reuse permission is not granted (docs/tasks)."""
+    if not os.path.exists(catalog):
+        return 0
+    raw = json.load(open(catalog, encoding="utf-8"))
+    cams = [{k: c.get(k) for k in CAMERA_FIELDS} for c in raw.get("cameras", [])
+            if c.get("lat") is not None and c.get("lon") is not None]
+    out = {"source": raw.get("source"), "source_url": raw.get("source_url"), "terms_url": raw.get("terms_url"),
+           "checked_on": raw.get("checked_on"), "frames": "none: TxDOT snapshot permission pending", "cameras": cams}
+    os.makedirs(out_dir, exist_ok=True)
+    _dump(os.path.join(out_dir, "cameras.json"), out)
+    return len(cams)
+
+
 def main():
     p = argparse.ArgumentParser(description="Turn marks, DEM, roads and observations into map layers")
     p.add_argument("--marks", default="data/marks.csv")
@@ -150,6 +168,7 @@ def main():
     p.add_argument("--radius", type=float, default=400.0)
     a = p.parse_args()
     print(json.dumps(build_outputs(a.marks, a.dem, a.roads, a.observations, a.out, a.radius), indent=2))
+    print(f"published {publish_cameras(out_dir=a.out)} cameras")
 
 
 if __name__ == "__main__":
