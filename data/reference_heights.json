@@ -1,6 +1,26 @@
 [
-  {"name": "passenger car tire (overall diameter)", "height_m_low": 0.60, "height_m_high": 0.70, "source": "TO VERIFY before demo"},
-  {"name": "street curb", "height_m_low": 0.10, "height_m_high": 0.20, "source": "TO VERIFY before demo"},
-  {"name": "car door handle (above ground)", "height_m_low": 0.80, "height_m_high": 1.05, "source": "TO VERIFY before demo"},
-  {"name": "adult knee (above ground)", "height_m_low": 0.45, "height_m_high": 0.55, "source": "TO VERIFY before demo"}
+  {
+    "name": "passenger car or small SUV tire, top of tire",
+    "height_m_low": 0.60,
+    "height_m_high": 0.72,
+    "source": "Computed from tire size markings: overall diameter = rim + 2 x width x aspect ratio. 185/60R15 = 0.603 m, 195/65R15 = 0.635 m, 225/65R17 = 0.724 m. Check: https://tirewheelguide.com/calculator/195-65-15/"
+  },
+  {
+    "name": "passenger car or small SUV wheel, center of hub",
+    "height_m_low": 0.30,
+    "height_m_high": 0.36,
+    "source": "Half the tire diameters above (the hub sits at the wheel's center)."
+  },
+  {
+    "name": "street curb, top of curb face",
+    "height_m_low": 0.10,
+    "height_m_high": 0.15,
+    "source": "Iowa DOT Design Manual 3C-2: 4 in sloped, 6 in sloped and 6 in standard curbs. https://iowadot.gov/design-manual/chapter-3-cross-sections/3c-2-curbs . Houston curbs not yet checked."
+  },
+  {
+    "name": "standing adult, middle of kneecap",
+    "height_m_low": 0.41,
+    "height_m_high": 0.54,
+    "source": "ANSUR II public data, knee height (midpatella), barefoot: 5th percentile women 408 mm to 95th percentile men 536 mm (1,986 women, 4,082 men). Computed by us from https://www.openlab.psu.edu/ansur2/ . Shoes add a few cm."
+  }
 ]

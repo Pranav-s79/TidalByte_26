@@ -1,6 +1,10 @@
+import base64
+import json
+
 import pytest
 
-from flood.read_photo import parse_reading, read_photo
+import flood.read_photo as rp
+from flood.read_photo import parse_reading, read_photo, save_observation
 
 VALID = ('{"water_visible": true, "reference_object": "sedan tire", "depth_m_low": 0.35, '
          '"depth_m_high": 0.55, "obstacles": [{"type": "stalled_vehicle", "note": "car in lane"}], '
@@ -56,3 +60,60 @@ def test_client_error_becomes_needs_review(tmp_path):
 
     o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=boom)
     assert o["status"] == "needs_review" and "503" in o["error"]
+
+
+# --- found in the first real calls to nemotron-3.5-super-vl (Sujit, Nov 21) ---
+
+class FakeResponse:
+    status_code = 200
+
+    def __init__(self, content, finish_reason="stop"):
+        self._body = {"choices": [{"finish_reason": finish_reason, "message": {"content": content}}]}
+
+    def json(self):
+        return self._body
+
+
+def test_think_block_is_ignored():
+    r = parse_reading('<think>maybe {"water_visible": false}</think>\n' + VALID)
+    assert r["water_visible"] is True and r["status"] == "ai_proposed"
+
+
+def test_unknown_obstacle_type_keeps_its_name():
+    r = parse_reading(VALID.replace("stalled_vehicle", "fallen_sign"))
+    assert r["obstacles"] == [{"type": "other", "note": "fallen_sign: car in lane"}]
+
+
+def test_messages_carry_image_and_sourced_table():
+    parts = rp._messages(b"jpegbytes", "a.jpg")[0]["content"]
+    assert "street curb, top of curb face" in parts[0]["text"]
+    assert parts[1]["image_url"]["url"] == "data:image/jpeg;base64," + base64.b64encode(b"jpegbytes").decode()
+
+
+def test_thinking_switch_changes_the_request(monkeypatch):
+    sent = []
+    monkeypatch.setattr(rp.requests, "post", lambda url, **kw: sent.append(kw["json"]) or FakeResponse(VALID))
+    monkeypatch.setenv("NVIDIA_API_KEY", "k")
+    rp.post_chat([])
+    monkeypatch.setenv("NEMOTRON_VL_THINKING", "off")
+    rp.post_chat([])
+    assert sent[0]["max_tokens"] == 8192 and "chat_template_kwargs" not in sent[0]
+    assert sent[1]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_reply_cut_off_while_reasoning_needs_review(tmp_path, monkeypatch):
+    monkeypatch.setattr(rp.requests, "post", lambda url, **kw: FakeResponse(None, "length"))
+    monkeypatch.setenv("NVIDIA_API_KEY", "k")
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=rp.post_chat)
+    assert o["status"] == "needs_review" and "tokens reasoning" in o["error"]
+
+
+def test_rerun_refreshes_ai_reading_but_never_a_reviewed_one(tmp_path):
+    path = str(tmp_path / "observations.json")
+    assert save_observation({"id": "obs-1", "status": "ai_proposed"}, path)
+    assert save_observation({"id": "obs-1", "status": "needs_review"}, path)
+    assert json.load(open(path)) == [{"id": "obs-1", "status": "needs_review"}]
+    json.dump([{"id": "obs-1", "status": "confirmed"}], open(path, "w"))
+    assert not save_observation({"id": "obs-1", "status": "ai_proposed"}, path)
+    assert json.load(open(path)) == [{"id": "obs-1", "status": "confirmed"}]
