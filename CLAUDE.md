@@ -8,18 +8,18 @@
 
 ## 1. Project at a glance
 
-**One-sentence pitch:** Turn existing street-camera footage and community photos into reviewable flood observations, then show how those observations may affect road access now and where recurring flooding suggests future infrastructure attention.
+**One-sentence pitch:** Turn existing street-camera footage and community photos into reviewable flood-depth readings, project each camera's readings a short time ahead, give dispatchers least-deep route options within a depth limit their agency sets, and show where recurring flooding suggests future infrastructure attention.
 
 **Personal motivation:** Our team has experienced being stranded because a nearby bridge repeatedly floods. We know how frustrating it is to see an impassable crossing without knowing what is happening elsewhere or which communities are being cut off. Use this authentic experience as the opening of the pitch; do not invent a bridge name, date, rescue event, injury, or other details.
 
 **Core problem:** River gauges, weather alerts, and road-closure reports provide essential information but may not describe water conditions at a particular street or bridge. Cameras and community media sometimes show those conditions, yet their observations are fragmented, difficult to validate, and hard to connect to road-network consequences. Repeated local incidents can also be difficult to see as a long-term infrastructure pattern.
 
 **Our intended change:**
-- **During a flood:** Convert footage into time-stamped, source-linked observations and help an authorized reviewer spot possible road-access disruptions.
+- **During a flood:** Convert footage into time-stamped, source-linked observations, help an authorized reviewer spot possible road-access disruptions, and propose least-deep route options for a dispatcher to choose from (rules: `docs/routing-and-prediction.md`).
 - **After a flood:** Replay documented events, identify places that repeatedly appear affected, and suggest locations for further civil-engineering investigation.
 - **For everyone interpreting results:** Present observations and uncertainty in a clear, accessible 2D/3D interface.
 
-This is **decision support**, not a flood forecasting service, a certified road-safety system, or a replacement for public authorities.
+This is **decision support**, not a flood forecasting service (only short per-camera projections, at most 60 minutes ahead), a certified road-safety system, or a replacement for public authorities.
 
 ## 2. Hackathon objective and judging lens
 
@@ -49,6 +49,7 @@ This is **decision support**, not a flood forecasting service, a certified road-
 - Opens the original visual evidence and sees what the AI observed or could not determine.
 - Reviews potential effects on roads, bridges, and access to important facilities.
 - Accepts/rejects an incident for the *prototype's review queue*; this must not operate actual road closures.
+- Compares 2–3 least-deep route options computed within the depth limit the agency set for a vehicle type, and picks one. The prototype never dispatches vehicles.
 
 **B. Municipal planner / civil engineer**
 - Replays a past flood, compares multiple documented events, and finds repeatedly affected road segments.
@@ -68,7 +69,7 @@ This is **decision support**, not a flood forecasting service, a certified road-
 2. **Observed-water analysis:** Detect whether visible standing/rising floodwater is plausible, associate the observation with its time and known camera location, and show evidence. Estimate a numeric depth **only when a usable calibration or reference object exists**. Otherwise say “water detected; depth unknown.”
 3. **Map observation:** Place the observation on a 2D map at a known location with a timestamp, source preview, verification status, and uncertainty/limitations. Never invent coordinates.
 4. **Human verification:** Provide an obvious accept/reject or needs-review action. Clearly distinguish AI-proposed observations from verified reports and official notices.
-5. **Road consequence:** Flag nearby road segment(s) as **potentially affected** and show a small, clearly hypothetical road-network or connectivity comparison if the segment were unavailable.
+5. **Road consequence and route options:** Flag nearby road segment(s) as **potentially affected**, and compute least-deep route options within a person-set depth limit on the replay data, following the rules in `docs/routing-and-prediction.md`.
 6. **Explainable agent output:** Nemotron produces a short, evidence-backed incident summary and a concrete reviewer task; the summary references actual observations instead of inventing facts.
 
 ### P1 — Differentiating features (after P0 is stable)
@@ -78,6 +79,8 @@ This is **decision support**, not a flood forecasting service, a certified road-
 9. **3D neighborhood / street view:** Show buildings, the road network, camera positions, and understandable water-height references. If using illustrative water surfaces, explicitly label them **conceptual visualization**, not a validated hydraulic simulation.
 10. **Critical-facility context:** Highlight potentially affected access to hospitals, fire stations, schools, bridges, or shelters when reliable map data is available. Describe impact as conditional on a reported or confirmed restriction.
 11. **Infrastructure review cards:** For a repeated hotspot, generate a factual summary of observed incidents, a map of potential access consequences, and possible categories of investigation (e.g., drainage capacity review, culvert maintenance review, low-water-crossing signage review, roadway elevation assessment). The agent **does not prescribe construction** or claim an intervention is effective without engineering evidence.
+12. **Live camera readings and short-term prediction:** TranStar camera frames read by Nemotron against each camera's dry baseline, with a per-camera Gaussian process that projects depth at most 60 minutes ahead (`docs/routing-and-prediction.md`).
+13. **Least-deep routing on predicted depth:** route options that use each segment's depth at the vehicle's arrival time (observed, estimated or predicted, always labeled).
 
 ### P2 — Stretch features (only if time and evidence permit)
 
@@ -89,8 +92,8 @@ This is **decision support**, not a flood forecasting service, a certified road-
 
 ### Explicitly out of scope for the hackathon
 
-- Hydrodynamic forecasting, citywide water-depth prediction, high-resolution flood simulation, or claiming a 3D visualization reflects true water surface elevation.
-- Automatic public alerts, actual dispatcher control, road-closure requests to governments, or real emergency-vehicle routing.
+- Hydrodynamic forecasting, citywide water-depth prediction, high-resolution flood simulation, or claiming a 3D visualization reflects true water surface elevation. (Short per-camera projections up to 60 minutes ahead are in scope; see `docs/routing-and-prediction.md`.)
+- Automatic public alerts, actual dispatcher control (dispatching vehicles, CAD integration), road-closure requests to governments, or public/driver navigation. Least-deep route *options* that a dispatcher chooses from are in scope, under the routing rules.
 - Telling any driver that a road is safe based on absent/low water detections, camera visibility, or estimated depth.
 - Full metropolitan camera integration, mass-scale continuous processing, or unsupported claims of real-time citywide coverage.
 - Production-grade infrastructure design, cost estimates, investment optimization, or regulatory certification.
@@ -124,9 +127,21 @@ Keep these distinctions visible in every layer:
 - **Estimated water depth:** A range tied to a known reference/calibration, with uncertainty; not an exact roadway-wide depth.
 - **Possible network impact:** A conditional model result (“if this segment is inaccessible…”), not an observation.
 - **Unknown / unobserved:** Absence of evidence; never equate it with dry or passable.
+- **Predicted water depth:** A projection of one camera's recent readings to a stated time, at most 60 minutes ahead, with a range that widens the further ahead it looks. A model output, never an observation.
+- **Route option:** A conditional plan computed from observed, estimated and predicted depths within a depth limit set by a person at the agency. It reports its deepest point and its unobserved distance, and is never a safety certification.
 - **Historical / replay / simulated:** Clearly distinguish all three from current, observed conditions.
 
 When the VLM and any secondary model disagree, preserve the disagreement instead of averaging it into unjustified precision.
+
+### Routing rules (full version and math: `docs/routing-and-prediction.md`)
+
+1. Never say safe, clear, passable or all clear; report numbers with their source.
+2. A person at the agency sets each vehicle type's depth limit; the agent never sets or changes it.
+3. Plan on the upper end of every depth range.
+4. Every depth is labeled Observed, Estimated, Predicted (with its time) or Unknown.
+5. Unobserved roads are never treated as dry; every option shows its unobserved distance.
+6. Predict at most 60 minutes ahead, and only with enough recent readings.
+7. The agent proposes 2–3 options; the dispatcher picks; the agent re-plans and alerts but never switches routes itself.
 
 ## 6. Historical backtracking and infrastructure impact
 
@@ -168,6 +183,8 @@ Never frame a hypothesis like this as a verified local fact until real records s
 In the pitch, emphasize **the interaction** among disciplines rather than merely listing them: vision detects an issue; GIS locates it; transportation analysis reveals conditional access impacts; history surfaces repeat patterns; civil engineering identifies what must be investigated; design helps humans interpret the result.
 
 ## 8. Demo strategy
+
+**Current plan (Nov 21):** the Harvey 2017 Meyerland replay is the **proof of concept** and is built (`python -m flood.run`, `web/index.html`, `web/3d.html`). Live TranStar cameras, short-term prediction and least-deep routing are the **product**; demo the router on the replay data and present anything not working as planned. Tasks: `docs/tasks/2026-11-21-polish.md`.
 
 **Preferred format:** A deterministic replay of a real, authorized street-camera sequence processed by the working pipeline, with a visually polished 2D map and a targeted 3D close-up. A live webcam demo is a bonus, not a dependency.
 
@@ -262,7 +279,8 @@ A judge can watch an authorized camera clip being processed, inspect a source-li
 - Event's official model, API, and Adobe track requirements.
 - Team size, available hardware, internet reliability, and event duration.
 - Confirmed usable footage with trustworthy location/timestamp metadata and permission.
-- Geographic focus for first event replay (Houston is a candidate, **not a verified data commitment**).
+- ~~Geographic focus for first event replay~~ **Decided:** Meyerland (Brays Bayou), Houston, Hurricane Harvey 2017 replay from 10 USGS high-water marks.
+- **Decided (Nov 21):** demo = replay proof of concept; product = TranStar cameras + short-term prediction + least-deep routing.
 - Whether historical data supports repeated flooding at the proposed bridge/location.
 - Exact baseline for evaluating detection and any defensible depth-error metrics.
 - Which P1 feature (history, 3D, or road analysis depth) gets precedence after P0 is working.

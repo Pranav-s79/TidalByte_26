@@ -1,6 +1,6 @@
 # Flood Scene 3D: MVP Design
 
-Nov 21, 2026 · status: **planned** (nothing built yet)
+Nov 21, 2026 · status: **built** (MVP on `main` at 1:00 PM). Product direction since then: TranStar cameras + short-term prediction + least-deep routing, specified in [`docs/routing-and-prediction.md`](../../routing-and-prediction.md).
 
 ## Intent
 
@@ -15,7 +15,7 @@ This narrows `CLAUDE.md`: the 3D scene is now the centerpiece, built on top of t
 
 ## Non-goals
 
-- Routing or "best path" suggestions.
+- Routing inside the MVP itself. Routing is now part of the product direction; its rules and math are in `docs/routing-and-prediction.md`.
 - Flood forecasting or hydraulic simulation.
 - Live camera ingestion (stretch only).
 
@@ -91,6 +91,7 @@ Use exactly these phrases:
 - "USGS measured (surveyed after the flood)"
 - "AI-proposed: awaiting review"
 - "REPLAY · Hurricane Harvey, Aug 2017"
+- Routes: "Deepest point on route: est. X m", "Predicted for HH:MM", "Within the depth limit you set", "Not covered by any camera: X km"
 
 Never use "safe", "clear" or "passable".
 

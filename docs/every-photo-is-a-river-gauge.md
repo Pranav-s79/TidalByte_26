@@ -12,7 +12,7 @@ An agent turns residents' flood photos into verified, street-level water-depth r
 
 **Why here.** Texas had more flood deaths than any other state from 1959 to 2019: 1,069 ([FOX Weather](https://www.foxweather.com/learn/peak-flash-flood-season-us-june-july)).
 
-**What it is not.** It doesn't predict or prevent floods, and it never replaces official warnings. Its value is the first few hours of a flood, when everyone is guessing.
+**What it is not.** It doesn't forecast or prevent floods (it only projects each camera's own readings up to 60 minutes ahead), and it never replaces official warnings. Its value is the first few hours of a flood, when everyone is guessing.
 
 ## Update: street cameras for emergency dispatch
 
@@ -29,9 +29,9 @@ The input is now Houston's traffic cameras instead of resident photos, and the u
 | Routing goal | Avoid all water | Least-deep route within the vehicle's depth limit |
 | Demo data | Uploaded photos | TranStar does not record video or save images ([KPRC](https://www.click2houston.com/news/local/2024/05/15/what-will-it-take-for-houston-transtar-cameras-to-record)), so we collect dry baselines today and flood-time frames from a past event, and replay them |
 
-**How the dispatcher router works.**
+**How the dispatcher router works.** Full rules and the prediction math: [`docs/routing-and-prediction.md`](routing-and-prediction.md).
 
-1. The agency sets a maximum safe depth for each vehicle type. A person sets it, never the agent.
+1. The agency sets a depth limit for each vehicle type. A person sets it, never the agent.
 2. Each road segment a camera watches gets a depth of mean + 1 standard deviation, so the router plans on the cautious number.
 3. Drop every segment deeper than the vehicle's limit.
 4. Among the remaining routes, pick the one whose deepest point is shallowest, then the shortest of those. To do this, try depth caps in small steps (0, 5, 10 cm and up to the limit); the first cap that still connects start to end wins, and `networkx` finds the shortest path under it.
@@ -59,7 +59,7 @@ Every photo goes through the same steps and ends as a depth pin that a human con
 
 Photos that fail vetting stop there. Usable ones get two independent depth estimates, and nothing reaches the priority list until a dispatcher confirms it.
 
-Confirmed pins then feed the safe-route agent, which plans routes that treat flooded streets as closed.
+Confirmed pins then feed the route agent, which proposes least-deep routes within the depth limit the agency sets.
 
 ## Where AI/ML does the work
 
@@ -73,7 +73,7 @@ Each of the three required tools has a job that a form or a search box couldn't 
 | Depth map | scikit-learn `GaussianProcessRegressor` | Interpolates between geotagged pins | Continuous depth surface with uncertainty |
 | Hotspots | scikit-learn `DBSCAN` | Groups nearby deep readings | Ranked rescue-priority list |
 | Agent loop | Nemotron reasoning model | Runs the steps, merges the two depth estimates, writes a one-line explanation per pin | Pin + explanation, waiting for dispatcher approval |
-| Safe routes | Nemotron reasoning model + routing tool (osmnx + networkx on OpenStreetMap) | Calls the router, checks the route against pins, re-plans when a new pin lands on it | Route that avoids flooded streets + list of what it avoided, each with its photo |
+| Least-deep routes | Nemotron reasoning model + routing tool (osmnx + networkx on OpenStreetMap) | Calls the router, checks the route against pins, re-plans when a new pin lands on it | Route that avoids flooded streets + list of what it avoided, each with its photo |
 | App | Next.js + Supabase + Leaflet | Upload, storage, live map, confirm/reject buttons | What judges see |
 
 The combined estimate is the honest part: when the VLM and the CNN disagree, the pin shows a wider range and lower confidence instead of hiding the conflict.
@@ -85,10 +85,10 @@ The event kit allows any Nemotron model. These picks follow the kit's own recomm
 | Job | Nemotron model | Why this one (per the kit) |
 | --- | --- | --- |
 | Photo vetting + waterline reading | Nemotron 3.5 Super VL (120B total / 12B active) | Built for multi-step agents that need tools and image understanding |
-| Orchestrator + safe-route tool calls | Nemotron 3.5 Lightning (30B total / 3B active) | Fast tool calls, routing and high-volume text; up to 1M-token context, 6 languages |
+| Orchestrator + routing tool calls | Nemotron 3.5 Lightning (30B total / 3B active) | Fast tool calls, routing and high-volume text; up to 1M-token context, 6 languages |
 | Upload screening (new) | Nemotron 3.5 Content Safety | Text and image moderation in 12 languages with custom policies; photos end up on a public map |
 | Stretch: voice reports | Nemotron 3.5 Transcribe or ASR Streaming | 40 languages; a resident can say "water's up to my knees on Bissonnet" instead of sending a photo |
-| Stretch: spoken directions | Magpie TTS Multilingual | Reads the safe route aloud to drivers, in 12 languages |
+| Stretch: spoken directions | Magpie TTS Multilingual | Reads the dispatcher's chosen route aloud to the crew, in 12 languages |
 
 The Nemotron Nano 2 VL named in the earlier table still works; Super VL is the kit's current pick for images.
 
@@ -96,9 +96,11 @@ The Nemotron Nano 2 VL named in the earlier table still works; Super VL is the k
 
 **Framework.** Wrap the agent in the NeMo Agent Toolkit. It works with LangGraph or a custom stack and adds tracing and evaluation, which feed straight into the criteria below.
 
-## Safe-route agent
+## Least-deep route agent
 
-The agent also plans safe routes. It runs a real routing tool over Houston's road map, treats every confirmed or uncertain flooded street as closed, and re-plans when a new pin lands on the route.
+> Current rules and math: [`docs/routing-and-prediction.md`](routing-and-prediction.md). Where this section differs, that doc wins.
+
+The agent also proposes least-deep route options. It runs a real routing tool over Houston's road map, drops every segment deeper than the person-set depth limit, and re-plans when new readings change the chosen route.
 
 1. Load the road network for one part of Houston from OpenStreetMap with `osmnx`, and route with `networkx`.
 2. Snap each confirmed pin to its nearest road segment. Use the depth surface to mark nearby segments flooded or uncertain.
@@ -160,7 +162,7 @@ Houston already has good maps of where water is. None of the official tools says
 | [Waze flood reports](https://support.google.com/waze/answer/13809605) | Drivers | A flood marker on a road | No depth field described |
 | [BluPix](https://stories.tamu.edu/news/2020/08/26/construction-science-professor-develops-unique-app-to-gauge-flood-levels/) | Texas A&M (Behzadan group), 2020 | AI depth from photos that include a stop sign, paired with a pre-flood photo of the same spot | Yes, at stop signs |
 | [CRIS-HAZARD](https://www.stpetersburg.usf.edu/news/2026/flood-monitoring-system-expands-from-research-tool-to-critical-community-resource.aspx) | USF St. Petersburg | About 40 solar cameras with depth markers plus a resident photo app, Pinellas County, Florida | Yes, at camera sites |
-| Every Photo Is a River Gauge | Us | Depth from any photo, vetted by an agent, plus safe routes | Yes, wherever photos are posted (accuracy unproven) |
+| Every Photo Is a River Gauge | Us | Depth from any photo, vetted by an agent, plus least-deep route options | Yes, wherever photos are posted (accuracy unproven) |
 
 How to position it:
 
@@ -276,7 +278,7 @@ On our working rubric it averages 4.4 of 5 (Ingenuity lowered to 3 after finding
 | Diversity | 5 | Hydrology, emergency management, computer vision, GIS, community reporting |
 | Applicability | 4 | Clear need; responder adoption is untested |
 | Looks | 5 | Photo in, pin out, map redraws: obvious in seconds |
-| NVIDIA track | strong | The agent finishes work: vets each photo, places a pin and updates the priority list, all checked by a dispatcher, then plans safe routes around confirmed flooding |
+| NVIDIA track | strong | The agent finishes work: vets each photo, places a pin and updates the priority list, all checked by a dispatcher, then proposes least-deep routes within the agency's depth limit |
 | Adobe track | strong | Depth silhouettes, confidence shading and a time slider make danger readable to non-experts |
 
 For the NVIDIA pitch, say the loop out loud: photo in → Nemotron judges and measures → pin and priority list out → human confirms → Nemotron routes around it.
@@ -320,7 +322,7 @@ The biggest risk is a confident wrong pin, so every design choice leans toward s
 | Faces and license plates | Blur them before storing or displaying |
 | Mistaken for an official warning | Label the map as community-reported and unofficial; link to NWS alerts |
 | Over-trust by drivers | Message stays "turn around" for any reading above ankle depth |
-| Router sends someone into water | Any confirmed or uncertain flooded segment is closed, however shallow; streets with no recent photos are labeled "no data", never "safe" |
+| Router sends a crew into deeper water than expected | Plan on the upper end of every range; drop segments above the person-set limit; predict at most 60 min ahead; show unobserved km on every option; roads with no data are "Unknown: no data", never dry |
 
 Open questions:
 

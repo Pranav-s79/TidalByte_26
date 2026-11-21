@@ -1,5 +1,7 @@
 # Flood Scene 3D: MVP Implementation Plan
 
+> **Status (1:15 PM):** every MVP task is done and on `main`. Next work: `docs/tasks/2026-11-21-polish.md`. Routing and prediction: `docs/routing-and-prediction.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** One command turns Harvey high-water marks, ground elevation, roads and AI photo readings into 3D map layers of Meyerland that a dispatcher can read.
