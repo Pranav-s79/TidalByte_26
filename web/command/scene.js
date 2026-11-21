@@ -2,6 +2,7 @@
 // Cesium scene for the command center: dark basemap, extruded OSM buildings, estimated water,
 // road status, unknown areas and evidence markers. No Cesium ion assets are required.
 import { BANDS, CRITICAL_DEPTH_M, isUsgs, pinId } from './data.js';
+import { terrainProvider } from './flood3d.js';
 
 const C = (css, a = 1) => Cesium.Color.fromCssColorString(css).withAlpha(a);
 const CENTER = [-95.4425, 29.686];
@@ -63,6 +64,10 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     skyBox: false, skyAtmosphere: false, contextOptions: { webgl: { alpha: true } },
   });
   const scene = viewer.scene;
+  // Render at the display's real pixel density (capped at 2x). Cesium's default renders at CSS pixels
+  // and lets the browser upscale, which is what made the city look soft and grainy on laptop screens.
+  viewer.useBrowserRecommendedResolution = false;
+  viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2);
   scene.backgroundColor = Cesium.Color.TRANSPARENT; // CSS gradient shows through as the night sky
   scene.globe.baseColor = C('#0a1220');
   scene.globe.showGroundAtmosphere = false;
@@ -117,10 +122,17 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
 
   // Soft key light from the south-west so building faces read in 3D.
   const enu = Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.fromDegrees(...CENTER));
-  const local = Cesium.Cartesian3.normalize(new Cesium.Cartesian3(0.5, 0.6, -0.62), new Cesium.Cartesian3());
+  const local = Cesium.Cartesian3.normalize(new Cesium.Cartesian3(0.38, 0.5, -0.78), new Cesium.Cartesian3());
   const dir = Cesium.Matrix4.multiplyByPointAsVector(enu, local, new Cesium.Cartesian3());
-  scene.light = new Cesium.DirectionalLight({ direction: Cesium.Cartesian3.normalize(dir, dir), intensity: 2.4,
-    color: C('#d6e4ff') });
+  scene.light = new Cesium.DirectionalLight({ direction: Cesium.Cartesian3.normalize(dir, dir), intensity: 2.9,
+    color: C('#e4ecff') });
+  // Soft shadows from that key light give buildings weight on the terrain. One 2048 map, cascades off.
+  viewer.shadows = true;
+  scene.shadowMap.softShadows = true;
+  scene.shadowMap.size = 2048;
+  scene.shadowMap.darkness = 0.55;
+  scene.shadowMap.maximumDistance = 4000;
+  scene.globe.shadows = Cesium.ShadowMode.RECEIVE_ONLY;
 
   // Keep status colours crisp. Bloom makes dense road networks harder to distinguish.
   const bloom = scene.postProcessStages.bloom;
@@ -139,6 +151,10 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   let selectEnt = null;
   let mode = 'operational';
   let photorealisticLayer = null;
+  // Terrain grid (flood3d). When set, everything is placed at real lidar ground heights (m NAVD88).
+  let grid = null;
+  let markWse = new Map(); // USGS surveyed water elevation per mark id (m NAVD88), from flood3d.json
+  const groundH = (lon, lat, add = 0) => (grid ? (grid.groundAt(lon, lat) ?? grid.baseGround) : 0) + add;
   document.body.dataset.mapMode = mode;
 
   // ---------------------------------------------------------------- ground plate (context)
@@ -199,23 +215,68 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     }
   }
 
+  // ---------------------------------------------------------------- terrain (flood3d)
+  // Lidar ground as terrain, draped with the baked dark hillshade. Water drawn later as a flat
+  // surface at its computed level, so the terrain itself cuts the shoreline.
+  async function useTerrain(g, { basemapUrl = 'assets/basemap.png', bbox } = {}) {
+    grid = g;
+    markWse = new Map((g.header.validation?.marks || []).map((m) => [String(m.id), m.wse_measured]));
+    viewer.terrainProvider = terrainProvider(g);
+    scene.globe.depthTestAgainstTerrain = true;
+    scene.globe.baseColor = C('#070d18');
+    try {
+      const rect = Cesium.Rectangle.fromDegrees(...bbox);
+      const img = await Cesium.SingleTileImageryProvider.fromUrl(basemapUrl, { rectangle: rect });
+      const layer = viewer.imageryLayers.addImageryProvider(img);
+      layer.brightness = 1.15;
+    } catch (e) { console.warn('[scene] basemap image unavailable', e); }
+    // Outside the analysis box there is no data: the basemap fades into the night there and a thin
+    // dashed line marks the edge ("Unknown: no data"), so nothing outside reads as dry ground.
+    const [w, s, e, n] = bbox;
+    const edge = viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray([w, s, e, s, e, n, w, n, w, s]),
+      clampToGround: true, width: 1.4, material: new Cesium.PolylineDashMaterialProperty({ color: C('#94a3b8', 0.45), gapColor: Cesium.Color.TRANSPARENT, dashLength: 14 }) } });
+    edge.cc = { kind: 'unknown', props: { status: 'unknown' } };
+    layers.unknown.push({ entity: edge });
+  }
+
+  // levels: water-surface manager from flood3d.createWaterLevels (has a `show` property).
+  // reachRings: outline of the measured reach; depths beyond it are lower confidence.
+  function addFloodSurface(levels, reachRings = []) {
+    layers.water.push({ prim: levels });
+    for (const ring of reachRings) {
+      const edge = viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray(ring.flat()),
+        clampToGround: true, width: 1.6,
+        material: new Cesium.PolylineDashMaterialProperty({ color: C('#e2e8f0', 0.7), gapColor: Cesium.Color.TRANSPARENT, dashLength: 12 }) } });
+      edge.cc = { kind: 'reach' };
+      layers.water.push({ entity: edge });
+    }
+  }
+
   // ---------------------------------------------------------------- buildings
   async function addBuildings(data) {
-    const shades = ['#2c3b56', '#30405c', '#283651', '#33435f', '#2a3955'].map((c) => C(c));
-    const tall = C('#3c4e6d');
+    const shades = (grid ? ['#3d4554', '#434b5a', '#394150', '#47505f', '#3f4756'] : ['#2c3b56', '#30405c', '#283651', '#33435f', '#2a3955']).map((c) => C(c));
+    const tall = C(grid ? '#555f70' : '#3c4e6d');
     const instances = [];
     data.buildings.forEach(([h, , ring], i) => {
       if (ring.length < 6) return;
+      // Base at the lowest lidar ground under the footprint so no wall floats above the terrain.
+      let base = 0;
+      if (grid) {
+        base = Infinity;
+        for (let k = 0; k < ring.length; k += 2) base = Math.min(base, groundH(ring[k], ring[k + 1]));
+      }
       instances.push(new Cesium.GeometryInstance({
         geometry: new Cesium.PolygonGeometry({
           polygonHierarchy: new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(ring)),
-          height: 0, extrudedHeight: h, vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
+          height: base, extrudedHeight: base + h + (grid ? 0.3 : 0), vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
         }),
         attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(h > 9 ? tall : shades[(i * 7) % shades.length]) },
       }));
     });
     const prim = scene.primitives.add(new Cesium.Primitive({
       geometryInstances: instances, allowPicking: false, asynchronous: true,
+      // cast onto the terrain only: buildings receiving their own shadows produced acne (dotted roofs)
+      shadows: grid ? Cesium.ShadowMode.CAST_ONLY : Cesium.ShadowMode.DISABLED,
       appearance: new Cesium.PerInstanceColorAppearance({ translucent: false, closed: true }),
     }));
     layers.buildings.push({ prim });
@@ -296,19 +357,43 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     bridge: { width: 3.4, alpha: 0.95, mat: () => Cesium.Material.fromType('PolylineDash', { color: C(COLORS.amber, 0.95), gapColor: C('#0a1220', 0.85), dashLength: 7 }) },
     likely: { width: 3.5, alpha: 0.9, mat: () => Cesium.Material.fromType('Color', { color: C(COLORS.cyan, 0.9) }) },
   };
+  // Road vertex heights: on terrain, 0.3 m above lidar ground. Bridges: the bare-earth lidar has no
+  // deck, so the deck is drawn level between its two approaches, 0.8 m above them (approximate).
+  function roadPositions(f, tier, lift = 0) {
+    const coords = f.geometry.coordinates;
+    if (!grid) return Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ROAD_H + lift]));
+    if (tier === 'bridge' || f.properties.is_bridge) {
+      const h0 = groundH(...coords[0], 0.8), h1 = groundH(...coords[coords.length - 1], 0.8);
+      const seg = coords.map((c, i) => (i ? Math.hypot(c[0] - coords[i - 1][0], c[1] - coords[i - 1][1]) : 0));
+      const total = seg.reduce((a, b) => a + b, 0) || 1;
+      let run = 0;
+      return Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y], i) => {
+        run += seg[i];
+        return [x, y, Math.max(h0 + (h1 - h0) * (run / total), groundH(x, y, 0.4)) + lift];
+      }));
+    }
+    return Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, groundH(x, y, 0.3) + lift]));
+  }
   function addRoads(fc) {
     const groups = {};
     for (const f of fc.features) (groups[roadTier(f.properties)] ||= []).push(f);
-    for (const tier of ['unknown', 'none', 'possible', 'bridge', 'likely']) {
+    const tiers = grid ? ['possible', 'bridge', 'likely'] : ['unknown', 'none', 'possible', 'bridge', 'likely'];
+    for (const tier of tiers) {
       const feats = groups[tier];
       if (!feats || !feats.length) continue;
-      const style = ROAD_STYLE[tier];
+      // On the terrain model the water carries the story: flooded roads are thinner and quieter.
+      const calm = {
+        likely: { width: 2.4, alpha: 0.85, mat: () => Cesium.Material.fromType('Color', { color: C('#5eead4', 0.85) }) },
+        possible: { width: 2, alpha: 0.7, mat: () => Cesium.Material.fromType('Color', { color: C(COLORS.amber, 0.7) }) },
+        bridge: { width: 2.2, alpha: 0.75, mat: () => Cesium.Material.fromType('Color', { color: C('#e2b45c', 0.75) }) },
+      };
+      const style = grid ? calm[tier] : ROAD_STYLE[tier];
       const mat = style.mat();
       const prim = scene.primitives.add(new Cesium.Primitive({
         asynchronous: true,
         geometryInstances: feats.map((f) => new Cesium.GeometryInstance({
           geometry: new Cesium.PolylineGeometry({
-            positions: Cesium.Cartesian3.fromDegreesArrayHeights(f.geometry.coordinates.flatMap(([x, y]) => [x, y, ROAD_H])),
+            positions: roadPositions(f, tier),
             width: style.width, vertexFormat: Cesium.PolylineMaterialAppearance.VERTEX_FORMAT, arcType: Cesium.ArcType.NONE }),
           id: { kind: 'road', props: f.properties, feature: f, tier },
         })),
@@ -331,15 +416,18 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     const depth = p.depth_m_low === null || p.depth_m_low === undefined ? null : Number(p.depth_m_low);
     const info = { kind: 'pin', id, feature: f, tier };
     let grow = 0;
-    const base = Cesium.Cartesian3.fromDegrees(lon, lat, 0.2);
+    // On terrain: the pole stands on the surveyed ground (ground_m, same lidar) and the dot sits at the
+    // measured peak water height above it.
+    const g0 = grid ? (Number.isFinite(Number(p.ground_m)) ? Number(p.ground_m) : groundH(lon, lat)) : 0;
+    const base = Cesium.Cartesian3.fromDegrees(lon, lat, g0 + 0.2);
     // Neighbouring markers get taller poles so their labels stack instead of overlapping.
     const near = [...pins.values()].filter((g) => Cesium.Cartesian3.distance(g.base, base) < 200).length;
     const stalkM = STALK_M + 10 * near;
-    const top = (k) => Cesium.Cartesian3.fromDegrees(lon, lat, 0.2 + stalkM * k);
+    const top = (k) => Cesium.Cartesian3.fromDegrees(lon, lat, g0 + 0.2 + stalkM * k);
 
     const ring = viewer.entities.add({
       position: base,
-      ellipse: { semiMajorAxis: 8, semiMinorAxis: 8, height: 0.25, material: color.withAlpha(usgs ? 0.55 : 0.18),
+      ellipse: { semiMajorAxis: 8, semiMinorAxis: 8, height: g0 + 0.25, material: color.withAlpha(usgs ? 0.55 : 0.18),
         outline: true, outlineColor: color.withAlpha(0.95), outlineWidth: 2 },
     });
     const stalk = viewer.entities.add({
@@ -349,15 +437,16 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     });
     // The real peak water height on the pole, so the marker can be read against the houses.
     const waterline = depth === null ? null : viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(lon, lat, depth),
+      // the surveyed water elevation when known (authoritative); else ground + recorded depth
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, grid && markWse.has(String(id)) ? markWse.get(String(id)) : g0 + depth),
       point: { pixelSize: 7, color: C(COLORS.cyan), outlineColor: C('#ffffff'), outlineWidth: 1.5 },
     });
     const head = depth === null ? '? m' : `${depth.toFixed(2)} m`;
     const sub = usgs ? 'USGS · OBSERVED' : { confirmed: 'AI · CONFIRMED', rejected: 'AI · REJECTED' }[tier] || 'AI · AWAITING REVIEW';
     const label = viewer.entities.add({
       position: top(1), show: false,
-      label: { text: head, font: '600 15px Inter, system-ui, sans-serif', fillColor: C('#f8fafc'),
-        showBackground: true, backgroundColor: C('#060c18', 0.86), backgroundPadding: new Cesium.Cartesian2(9, 6),
+      label: { text: head, font: '600 13px Inter, system-ui, sans-serif', fillColor: C('#f8fafc'),
+        showBackground: true, backgroundColor: C('#060c18', 0.82), backgroundPadding: new Cesium.Cartesian2(7, 4),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -22),
         scaleByDistance: LABEL_SCALE, pixelOffsetScaleByDistance: LABEL_SCALE,
         distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2800),
@@ -369,7 +458,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
         showBackground: true, backgroundColor: C('#060c18', 0.86), backgroundPadding: new Cesium.Cartesian2(7, 4),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -2),
         scaleByDistance: LABEL_SCALE, pixelOffsetScaleByDistance: LABEL_SCALE,
-        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2200), // declutter the overview
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 900), // only when close
         disableDepthTestDistance: Number.POSITIVE_INFINITY },
     });
     const ents = [ring, stalk, label, subLabel, waterline].filter(Boolean);
@@ -381,20 +470,39 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
       tween(700, (k) => { grow = k; }, () => {
         label.show = subLabel.show = mode === 'operational' && layerOn.evidence;
       });
-      if (pulse && mode === 'operational') pulseRing(lon, lat, color);
+      if (pulse && mode === 'operational') pulseRing(lon, lat, color, g0);
     }, reduceMotion() ? 0 : delay);
   }
 
+  // Traffic cameras (Prince's catalog, web/data/cameras.json): a small marker on a short stalk with a
+  // label when close. Neutral slate: they are a planned input, not evidence in this replay.
+  function addCameras(cams) {
+    for (const cam of cams) {
+      const g0 = groundH(cam.lon, cam.lat);
+      const info = { kind: 'camera', id: `cam-${cam.id}`, cam };
+      const stalk = viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArrayHeights([cam.lon, cam.lat, g0, cam.lon, cam.lat, g0 + 12]),
+        width: 1.5, material: C('#cbd5e1', 0.7), arcType: Cesium.ArcType.NONE } });
+      const head = viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(cam.lon, cam.lat, g0 + 12),
+        point: { pixelSize: 9, color: C('#0f172a'), outlineColor: C('#e2e8f0'), outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        label: { text: `CAM ${cam.id}`, font: '600 11px Inter, system-ui, sans-serif', fillColor: C('#e2e8f0'),
+          showBackground: true, backgroundColor: C('#060c18', 0.8), backgroundPadding: new Cesium.Cartesian2(6, 3),
+          pixelOffset: new Cesium.Cartesian2(0, -16), verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2500), disableDepthTestDistance: Number.POSITIVE_INFINITY } });
+      stalk.cc = head.cc = info;
+      layers.evidence.push({ entity: stalk }, { entity: head });
+    }
+  }
+
   // A single expanding ring when a new observation lands. Restrained: one pulse, then gone.
-  function pulseRing(lon, lat, color) {
+  function pulseRing(lon, lat, color, g0 = groundH(lon, lat)) {
     if (reduceMotion()) return;
     let k = 0;
     const ent = viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(lon, lat, 0.3),
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, g0 + 0.3),
       ellipse: {
         semiMajorAxis: new Cesium.CallbackProperty(() => 8 + 70 * k, false),
         semiMinorAxis: new Cesium.CallbackProperty(() => 8 + 70 * k, false),
-        height: 0.3,
+        height: g0 + 0.3,
         material: new Cesium.ColorMaterialProperty(new Cesium.CallbackProperty(() => color.withAlpha(0.45 * (1 - k)), false)),
       },
     });
@@ -414,16 +522,27 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     return viewer.entities.add({ polyline: {
       positions: mode === 'photorealistic'
         ? Cesium.Cartesian3.fromDegreesArray(coords.flat())
-        : Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ROAD_H + 0.3])),
-      width, arcType: Cesium.ArcType.NONE, clampToGround: mode === 'photorealistic',
+        : Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, groundH(x, y, grid ? 0.6 : ROAD_H + 0.3)])),
+      // clampToGround needs a geodesic arc; ArcType.NONE with it stops Cesium's renderer.
+      width, arcType: mode === 'photorealistic' ? Cesium.ArcType.GEODESIC : Cesium.ArcType.NONE,
+      clampToGround: mode === 'photorealistic',
       material: glow ? new Cesium.PolylineGlowMaterialProperty({ color, glowPower: 0.35, taperPower: 1 }) : color,
     } });
   }
   function outline(sel) {
     if (!sel) return null;
     if (sel.kind === 'road') return lineEntity(sel.feature.geometry.coordinates, C('#ffffff', 0.55), 14);
-    if (sel.kind === 'water') return lineEntity(sel.feature.geometry.coordinates[0], C('#ffffff', 0.8), 3, false);
+    if (sel.kind === 'water' && sel.feature) return lineEntity(sel.feature.geometry.coordinates[0], C('#ffffff', 0.8), 3, false);
+    if (sel.kind === 'water' && sel.at) return probeEntity(sel.at);
     return null;
+  }
+  // Location probe marker for a clicked point on the terrain model.
+  function probeEntity(at) {
+    const h = (at.wse ?? at.ground ?? groundH(at.lon, at.lat)) + 0.05;
+    return viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(at.lon, at.lat, h),
+      ellipse: { semiMajorAxis: 6, semiMinorAxis: 6, height: h, material: C('#ffffff', 0.12), outline: true,
+        outlineColor: C('#ffffff', 0.9), outlineWidth: 2 },
+      point: { pixelSize: 6, color: C('#ffffff'), disableDepthTestDistance: Number.POSITIVE_INFINITY } });
   }
   function setHover(info) {
     if (hoverEnt) { viewer.entities.remove(hoverEnt); hoverEnt = null; }
@@ -446,15 +565,17 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     if (closures.has(id)) return;
     const coords = feature.geometry.coordinates;
     const line = viewer.entities.add({ polyline: {
-      positions: Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, ROAD_H + 0.4])),
+      positions: Cesium.Cartesian3.fromDegreesArrayHeights(coords.flatMap(([x, y]) => [x, y, groundH(x, y, grid ? 0.7 : ROAD_H + 0.4)])),
       width: 7, arcType: Cesium.ArcType.NONE,
       material: new Cesium.PolylineDashMaterialProperty({ color: C(COLORS.red), gapColor: C('#0a1220', 0.9), dashLength: 12 }) } });
     const mid = coords[Math.floor(coords.length / 2)];
-    const tag = viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(mid[0], mid[1], 6),
+    const tag = viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(mid[0], mid[1], groundH(mid[0], mid[1], 6)),
       label: { text: 'CLOSED (HYPOTHETICAL)', font: '700 10px Inter, system-ui, sans-serif', fillColor: C('#fff1f2'),
         showBackground: true, backgroundColor: C(COLORS.red, 0.88), backgroundPadding: new Cesium.Cartesian2(7, 4),
         disableDepthTestDistance: Number.POSITIVE_INFINITY, scaleByDistance: LABEL_SCALE } });
     line.cc = tag.cc = { kind: 'road', props: feature.properties, feature, tier: roadTier(feature.properties) };
+    // Drawn at operational-map heights, so hidden on the photorealistic city like setMode does (it would float).
+    line.show = tag.show = mode === 'operational';
     closures.set(id, [line, tag]);
     if (!reduceMotion()) {
       let k = 0;
@@ -512,17 +633,22 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   const dur = (s) => (reduceMotion() ? 0 : s);
   const headingDeg = () => Cesium.Math.toDegrees(viewer.camera.heading);
   function flyOverview({ duration = 2.4 } = {}) {
-    viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(...CENTER, 0), 1500), {
-      offset: new Cesium.HeadingPitchRange(Cesium.Math.toRadians(14), Cesium.Math.toRadians(-36), 3900),
+    const focus = grid ? [-95.4445, 29.6868] : CENTER;
+    viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(...focus, groundH(...focus)), 1200), {
+      offset: grid
+        ? new Cesium.HeadingPitchRange(Cesium.Math.toRadians(22), Cesium.Math.toRadians(-30), 2700)
+        : new Cesium.HeadingPitchRange(Cesium.Math.toRadians(14), Cesium.Math.toRadians(-36), 3900),
       duration: dur(duration), easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT });
   }
   function flyToPoint(lon, lat, { range = 260, pitch = -24, duration = 2.2, height = 2 } = {}) {
-    viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(lon, lat, height), 12), {
+    viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(lon, lat, groundH(lon, lat, height)), 12), {
       offset: new Cesium.HeadingPitchRange(Cesium.Math.toRadians(headingDeg()), Cesium.Math.toRadians(pitch), range),
       duration: dur(duration), easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT });
   }
   function flyToFeature(info, opts) {
     if (info.kind === 'pin') { const [lon, lat] = info.feature.geometry.coordinates; flyToPoint(lon, lat, opts); return; }
+    if (info.kind === 'water' && info.at) { flyToPoint(info.at.lon, info.at.lat, { range: 300, pitch: -28, ...opts }); return; }
+    if (info.kind === 'camera') { flyToPoint(info.cam.lon, info.cam.lat, { range: 320, pitch: -24, ...opts }); return; }
     const coords = info.kind === 'water' ? info.feature.geometry.coordinates[0] : info.feature.geometry.coordinates;
     const pts = Cesium.Cartesian3.fromDegreesArray(coords.flat());
     const sphere = Cesium.BoundingSphere.fromPoints(pts);
@@ -533,7 +659,8 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   }
   function centerOnScreen() {
     const c = new Cesium.Cartesian2(scene.canvas.clientWidth / 2, scene.canvas.clientHeight / 2);
-    const p = viewer.camera.pickEllipsoid(c);
+    const ray = viewer.camera.getPickRay(c);
+    const p = (ray && scene.globe.show && scene.globe.pick(ray, scene)) || viewer.camera.pickEllipsoid(c);
     if (!p) return CENTER;
     const carto = Cesium.Cartographic.fromCartesian(p);
     return [Cesium.Math.toDegrees(carto.longitude), Cesium.Math.toDegrees(carto.latitude)];
@@ -551,7 +678,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   }
 
   // ---------------------------------------------------------------- picking
-  const RANK = { pin: 0, road: 1, water: 2, unknown: 3 };
+  const RANK = { pin: 0, camera: 0, road: 1, water: 2, unknown: 3 };
   const infoOf = (hit) => (hit && hit.id ? hit.id.cc || hit.id : null);
   function pickAt(pos, drill = true) {
     const hits = drill ? scene.drillPick(pos, 8, 9, 9) : [scene.pick(pos, 7, 7)];
@@ -560,7 +687,22 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   }
   const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
   let onPick = () => {}; let onHover = () => {};
-  handler.setInputAction((e) => onPick(pickAt(e.position)), Cesium.ScreenSpaceEventType.LEFT_CLICK);
+  // On the terrain model, clicking water or bare ground reports the model at that exact point.
+  function probeAt(pos) {
+    if (!grid || mode !== 'operational') return null;
+    const ray = viewer.camera.getPickRay(pos);
+    const hit = ray && scene.globe.pick(ray, scene);
+    if (!hit) return null;
+    const carto = Cesium.Cartographic.fromCartesian(hit);
+    const lon = Cesium.Math.toDegrees(carto.longitude), lat = Cesium.Math.toDegrees(carto.latitude);
+    const at = { lon, lat, ...grid.pointInfo(lon, lat) };
+    return at.cls ? { kind: 'water', at, id: `${lon.toFixed(5)},${lat.toFixed(5)}` } : null;
+  }
+  handler.setInputAction((e) => {
+    let info = pickAt(e.position);
+    if (grid && (!info || (info.kind === 'water' && !info.feature) || info.kind === 'unknown')) info = probeAt(e.position) || info;
+    onPick(info);
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   let hoverPos = null;
   handler.setInputAction((e) => { hoverPos = e.endPosition; }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
   let lastHoverKey = null;
@@ -574,12 +716,13 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   });
 
   return {
-    viewer, addContext, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
+    viewer, addContext, useTerrain, addCameras, addFloodSurface, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
+    groundH, // operational-map ground height (lidar terrain when loaded, else 0) plus a lift
     flyOverview, flyToPoint, flyToFeature, streetLevel, topDown, intro,
     // Orbit around the point at screen centre until north is up, keeping tilt and distance.
     resetNorth: () => {
       const [lon, lat] = centerOnScreen();
-      const target = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+      const target = Cesium.Cartesian3.fromDegrees(lon, lat, groundH(lon, lat));
       const range = Cesium.Cartesian3.distance(viewer.camera.positionWC, target);
       viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(target, 1), {
         offset: new Cesium.HeadingPitchRange(0, viewer.camera.pitch, range), duration: dur(1),
@@ -598,5 +741,6 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     onPick: (fn) => { onPick = fn; }, onHover: (fn) => { onHover = fn; },
     layerState: () => ({ ...layerOn }),
     mapMode: () => mode,
+    groundAt: (lon, lat) => (grid ? grid.groundAt(lon, lat) : null),
   };
 }

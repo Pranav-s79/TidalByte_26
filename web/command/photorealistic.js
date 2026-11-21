@@ -4,6 +4,7 @@
 
 import { pinId } from './data.js';
 import { pinTier, roadTier } from './scene.js';
+import { createWaterLevels } from './flood3d.js';
 
 const C = (css, alpha = 1) => Cesium.Color.fromCssColorString(css).withAlpha(alpha);
 const FALLBACK_OFFSET_M = -27;
@@ -11,19 +12,45 @@ const ROAD_COLORS = {
   likely: '#06b6d4', possible: '#f59e0b', bridge: '#f59e0b',
 };
 const PIN_COLORS = { observed: '#06b6d4', critical: '#e11d48', uncertain: '#f59e0b', confirmed: '#06b6d4', rejected: '#64748b' };
-const ALIGNMENT_TIMEOUT_MS = 3000;
+const ALIGNMENT_TIMEOUT_MS = 12000;
 
 function hierarchy(rings) {
   const ring = (points) => Cesium.Cartesian3.fromDegreesArray(points.slice(0, -1).flat());
   return new Cesium.PolygonHierarchy(ring(rings[0]), rings.slice(1).map((points) => new Cesium.PolygonHierarchy(ring(points))));
 }
 
-async function alignToLidar(viewer, samples) {
+// Everything except the Google tileset: our own primitives and entities. Cesium's height sampler
+// hits primitives even when they are hidden, so without this the "offset" measured the command
+// center's own geometry (ground plate at 0 m, lidar terrain at ~15 m) instead of the 3D city:
+// that is where the earlier -14.7 m came from.
+function objectsExcept(viewer, keep) {
+  const out = [];
+  const walk = (collection) => {
+    for (let i = 0; i < collection.length; i++) {
+      const item = collection.get(i);
+      if (item === keep) continue;
+      if (typeof item.get === 'function' && typeof item.length === 'number' && !(item instanceof Cesium.Cesium3DTileset)) walk(item);
+      out.push(item);
+    }
+  };
+  walk(viewer.scene.primitives);
+  out.push(...viewer.entities.values);
+  return out;
+}
+
+async function alignToLidar(viewer, samples, tiles) {
   if (!Array.isArray(samples) || samples.length < 10) {
     return { offset: FALLBACK_OFFSET_M, how: 'approximate: ground samples unavailable' };
   }
   const points = samples.map((sample) => Cesium.Cartographic.fromDegrees(sample.lon, sample.lat));
-  const sampled = await viewer.scene.sampleHeightMostDetailed(points);
+  const globeShown = viewer.scene.globe.show;
+  viewer.scene.globe.show = false; // lidar terrain sits at NAVD88 heights; never sample it here
+  let sampled;
+  try {
+    sampled = await viewer.scene.sampleHeightMostDetailed(points, objectsExcept(viewer, tiles));
+  } finally {
+    viewer.scene.globe.show = globeShown;
+  }
   const differences = sampled
     .map((point, index) => point && Number.isFinite(point.height) ? point.height - samples[index].ground_m : null)
     .filter((value) => value !== null)
@@ -50,9 +77,13 @@ export async function createPhotorealisticLayer(viewer, data, token) {
 
   Cesium.Ion.defaultAccessToken = token;
   const tiles = await Cesium.createGooglePhotorealistic3DTileset();
+  // Sharper tiles than the default 16 px error, and no shadow casting from the whole city mesh
+  // (expensive and the main source of shadow flicker); our own overlays carry the depth cues.
+  tiles.maximumScreenSpaceError = 10;
+  tiles.shadows = Cesium.ShadowMode.DISABLED;
   viewer.scene.primitives.add(tiles);
   const alignment = await Promise.race([
-    alignToLidar(viewer, data.samples),
+    alignToLidar(viewer, data.samples, tiles),
     new Promise((resolve) => window.setTimeout(() => resolve({
       offset: FALLBACK_OFFSET_M,
       how: 'approximate: lidar alignment timed out',
@@ -61,8 +92,15 @@ export async function createPhotorealisticLayer(viewer, data, token) {
   const { offset } = alignment;
   const groups = { water: [], roads: [], evidence: [], unknown: [] };
 
+  // Terrain-aware water (flood3d): one continuous surface at the computed water level, shifted from
+  // NAVD88 to the 3D city's ellipsoid heights by the measured offset. Falls back to the old surfaces.
+  let waterLevels = null;
+  if (data.grid) {
+    waterLevels = createWaterLevels(viewer, data.grid, { heightOffset: offset, palette: 'photo' });
+    groups.water.push(waterLevels);
+  }
   const waterByStatus = new Map();
-  for (const feature of data.surface.features) {
+  for (const feature of data.grid ? [] : data.surface.features) {
     const status = feature.properties.status;
     if (!waterByStatus.has(status)) waterByStatus.set(status, []);
     waterByStatus.get(status).push(feature);
@@ -112,7 +150,14 @@ export async function createPhotorealisticLayer(viewer, data, token) {
     groups.roads.push(entity);
   }
 
-  for (const feature of data.unknown.features) {
+  if (data.grid) {
+    const [w, s, e, n] = [-95.460, 29.674, -95.425, 29.698];
+    const edge = viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray([w, s, e, s, e, n, w, n, w, s]),
+      clampToGround: true, width: 2, material: new Cesium.PolylineDashMaterialProperty({ color: C('#f8fafc', 0.58), dashLength: 20 }) } });
+    edge.cc = { kind: 'unknown', props: { status: 'unknown' } };
+    groups.unknown.push(edge);
+  }
+  for (const feature of data.grid ? [] : data.unknown.features) {
     for (const ring of feature.geometry.coordinates.slice(1)) {
       const entity = viewer.entities.add({
         polyline: {
@@ -171,5 +216,5 @@ export async function createPhotorealisticLayer(viewer, data, token) {
   const setLayer = (name, next) => { layerState[name] = next; apply(); };
   setVisible(false);
 
-  return { tiles, alignment, setVisible, setLayer };
+  return { tiles, alignment, setVisible, setLayer, waterLevels };
 }

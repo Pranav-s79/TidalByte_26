@@ -2,7 +2,9 @@
 import { loadCore, loadBuildings, loadContext, loadCameras, loadPhotorealisticData, loadReferenceViews, reloadPins, postReview, pinId } from './data.js';
 import { createScene } from './scene.js';
 import { createPhotorealisticLayer } from './photorealistic.js';
+import { loadFlood3d, createWaterLevels, roadDepth } from './flood3d.js';
 import * as ui from './ui.js';
+import { setupRouting } from './routing.js';
 
 const state = { data: {}, selected: null, closures: new Map(), playing: false, step: 3, timer: null };
 let photorealisticLayer = null;
@@ -27,6 +29,7 @@ const scene = createScene(document.getElementById('cesium'), document.getElement
 });
 window.floodScene = scene; // console debugging
 scene.intro();
+const routing = setupRouting(scene, { getClosures: () => [...state.closures.keys()].map(String) });
 
 // ---------------------------------------------------------------- selection
 function select(info, { fly = false, focus = false } = {}) {
@@ -44,6 +47,7 @@ function select(info, { fly = false, focus = false } = {}) {
 function ctx(focus = false) {
   return {
     meta: state.data.meta,
+    terrain: Boolean(state.grid),
     referenceViews: state.data.referenceViews,
     focus,
     flyTo: (sel, opts) => scene.flyToFeature(sel, opts),
@@ -66,10 +70,12 @@ function toggleClosure(feature) {
   ui.renderClosures([...state.closures.values()], (f) => select({ kind: 'road', props: f.properties, feature: f }, { fly: true }),
     (f) => toggleClosure(f));
   if (state.selected && state.selected.kind === 'road') ui.renderDetails(state.selected, ctx());
+  routing.refresh();
+  routing.rerun();
   ui.toast(on ? 'Hypothetical closure added. Not an official closure.' : 'Hypothetical closure removed.', 'info', 2600);
 }
 
-scene.onPick((info) => select(info, { fly: !!info && info.kind === 'pin' }));
+scene.onPick((info) => { if (!routing.isPicking()) select(info, { fly: !!info && info.kind === 'pin' }); });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.selected) select(null);
 });
@@ -153,6 +159,7 @@ async function refreshPins() {
 async function setMapMode(mode, { announce = true } = {}) {
   if (mode === 'operational') {
     scene.setMode('operational');
+    routing.redraw();
     ui.setStatus('ok', 'Operational map');
     if (announce) ui.toast('Analysis view enabled.', 'info', 2200);
     scene.flyOverview({ duration: 1.8 });
@@ -163,7 +170,7 @@ async function setMapMode(mode, { announce = true } = {}) {
   if (!photorealisticLayer) {
     photorealisticLoad ||= (async () => {
       const extra = await loadPhotorealisticData();
-      return createPhotorealisticLayer(scene.viewer, { ...state.data, ...extra }, window.CESIUM_ION_TOKEN);
+      return createPhotorealisticLayer(scene.viewer, { ...state.data, ...extra, grid: state.grid }, window.CESIUM_ION_TOKEN);
     })();
     try {
       photorealisticLayer = await photorealisticLoad;
@@ -172,10 +179,65 @@ async function setMapMode(mode, { announce = true } = {}) {
       throw error;
     }
   }
+  photorealisticLayer.waterLevels?.setDrop(state.levels ? state.levels.drop : 0);
   scene.setMode('photorealistic', photorealisticLayer);
-  ui.setStatus('ok', 'Photorealistic city loaded');
+  routing.redraw();
+  const al = photorealisticLayer.alignment;
+  console.info('[command] photorealistic height alignment', al);
+  ui.setStatus(al.how.startsWith('approximate') ? 'warn' : 'ok',
+    `3D city ${al.how.startsWith('approximate') ? 'roughly ' : ''}aligned · NAVD88→ellipsoid ${al.offset.toFixed(1)} m`);
   if (announce) ui.toast('Photorealistic view enabled.', 'info', 2200);
   scene.flyOverview({ duration: 2.2 });
+}
+
+// Water level control: levels below the measured peak (connectivity from Brays Bayou, flood/inundation.py).
+const LEVEL_STEPS = 8;           // slider positions; right end = measured peak
+const LEVEL_STEP_M = 0.25;
+function setupLevels() {
+  const box = document.getElementById('levels');
+  const range = document.getElementById('lv-range');
+  const value = document.getElementById('lv-value');
+  const playBtn = document.getElementById('lv-play');
+  const peakCells = state.levels.cellsAt(0) || 1;
+  const counts = new Map();
+  let timer = null;
+  box.hidden = false;
+  const apply = (v) => {
+    const drop = (LEVEL_STEPS - v) * LEVEL_STEP_M;
+    state.levels.setDrop(drop);
+    photorealisticLayer?.waterLevels?.setDrop(drop);
+    if (!counts.has(drop)) counts.set(drop, state.levels.cellsAt(drop));
+    const share = Math.round((100 * counts.get(drop)) / peakCells);
+    const text = drop === 0 ? 'Measured peak · mapped extent' : `${drop.toFixed(2)} m below peak · ${share}% of peak area`;
+    value.textContent = text;
+    range.setAttribute('aria-valuetext', text);
+  };
+  const stop = () => { clearInterval(timer); timer = null; playBtn.innerHTML = ''; playBtn.insertAdjacentHTML('afterbegin', ui.iconSvg('play')); };
+  range.addEventListener('input', () => { if (timer) stop(); apply(Number(range.value)); });
+  playBtn.addEventListener('click', () => {
+    if (timer) { stop(); return; }
+    let v = Number(range.value) >= LEVEL_STEPS ? 0 : Number(range.value);
+    range.value = String(v); apply(v);
+    playBtn.innerHTML = ''; playBtn.insertAdjacentHTML('afterbegin', ui.iconSvg('pause'));
+    timer = setInterval(() => {
+      v += 1; range.value = String(v); apply(v);
+      if (v >= LEVEL_STEPS) stop();
+    }, 900);
+  });
+  // warm the cache for smooth scrubbing
+  state.levels.prebuild(Array.from({ length: LEVEL_STEPS }, (_, i) => (i + 1) * LEVEL_STEP_M));
+}
+
+// Road status for the 3D page from the terrain-aware model (2D map and router keep roads_status).
+function deriveRoads(fc, grid) {
+  return { ...fc, features: fc.features.map((f) => {
+    const p = f.properties;
+    if (p.is_bridge) return { ...f, properties: { ...p, status: 'bridge_not_estimated', max_depth_m: null, model: 'flood3d' } };
+    const r = roadDepth(grid, f.geometry.coordinates);
+    if (!r.sampled) return f;
+    const status = r.flooded ? 'likely_flooded' : r.inExtent ? 'possibly_flooded' : 'no_flooding_estimated';
+    return { ...f, properties: { ...p, status, max_depth_m: r.flooded ? Math.round(r.maxDepth * 100) / 100 : null, model: 'flood3d' } };
+  }) };
 }
 
 // ---------------------------------------------------------------- boot
@@ -195,18 +257,34 @@ async function setMapMode(mode, { announce = true } = {}) {
   renderLists();
   const [cameras, referenceViews] = await Promise.all([loadCameras(), loadReferenceViews()]);
   state.data.referenceViews = referenceViews;
-  ui.renderCameras(cameras, (cam) => {
-    scene.flyToPoint(cam.lon, cam.lat, { range: 320, pitch: -24 });
-    ui.toast(`Camera: ${cam.name}`, 'info', 2500);
-  });
+  state.cameras = cameras.cameras;
+  ui.renderCameras(cameras, (cam) => select({ kind: 'camera', id: `cam-${cam.id}`, cam }, { fly: true, focus: true }));
 
   ui.loaderStep('layers', 'active');
   try {
-    scene.addContext(await loadContext().catch(() => ({})), [-95.460, 29.674, -95.425, 29.698]);
-    if (core.unknown) scene.addUnknown(core.unknown);
-    if (core.water) scene.addWater(core.water);
-    if (core.roads) scene.addRoads(core.roads);
-    ui.loaderStep('layers', 'done', 'Water · roads · unknown');
+    const BBOX = [-95.460, 29.674, -95.425, 29.698];
+    state.grid = await loadFlood3d().catch((e) => { console.warn('[command] flood3d unavailable, using bathtub layers', e); return null; });
+    if (state.grid) {
+      // Terrain-aware model: lidar terrain, USACE extent, water level from USGS marks (docs/inundation.md).
+      await scene.useTerrain(state.grid, { bbox: BBOX });
+      state.levels = createWaterLevels(scene.viewer, state.grid);
+      scene.addFloodSurface(state.levels, state.grid.header.reach_outline || []);
+      setupLevels();
+      if (core.roads) {
+        state.data.roads = deriveRoads(core.roads, state.grid);
+        scene.addRoads(state.data.roads);
+        // Ordinary streets are in the basemap; the flooded-road overlay is opt-in ("Road impact").
+        setLayer('roads', false, false);
+      }
+      renderLists();
+      ui.loaderStep('layers', 'done', `Terrain flood model · ${state.grid.header.cell_m} m grid`);
+    } else {
+      scene.addContext(await loadContext().catch(() => ({})), BBOX);
+      if (core.unknown) scene.addUnknown(core.unknown);
+      if (core.water) scene.addWater(core.water);
+      if (core.roads) scene.addRoads(core.roads);
+      ui.loaderStep('layers', 'done', 'Water · roads · unknown');
+    }
   } catch (e) {
     ui.loaderStep('layers', 'error', e.message);
     console.error('[command] layers', e);
@@ -225,6 +303,7 @@ async function setMapMode(mode, { announce = true } = {}) {
   (core.pins ? core.pins.features : []).forEach((feature, index) => {
     scene.addPin(feature, { delay: 900 + index * 140, pulse: true });
   });
+  scene.addCameras(state.cameras || []);
 
   const mapModes = ui.setupMapMode({
     available: Boolean(window.CESIUM_ION_TOKEN),

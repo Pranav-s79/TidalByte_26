@@ -46,6 +46,10 @@
       <button class="icon-btn" type="button" data-collapse="left" aria-expanded="true" aria-label="Collapse operations panel"><span data-icon="left"></span></button>
     </div>
     <div class="panel-body">
+      <section class="sec" aria-labelledby="sec-route">
+        <div class="sec-head"><h3 class="sec-label" id="sec-route">Route options</h3><span class="replay-chip rt-chip">REPLAY</span></div>
+        <div id="routing"></div>
+      </section>
       <section class="sec" aria-labelledby="sec-detect">
         <div class="sec-head"><h3 class="sec-label" id="sec-detect">Flood detection</h3></div>
         <div class="stats" id="stats"></div>
@@ -95,9 +99,10 @@
     <div class="legend" id="legend" hidden>
       <div class="lg-group">
         <h4>Water (estimated peak)</h4>
-        <div class="lg-row"><span class="lg-ramp"><i></i><i></i><i></i><i></i></span><span>Likely flooded<small>0–0.3 · 0.3–0.6 · 0.6–1.2 · over 1.2 m</small></span></div>
-        <div class="lg-row"><span class="lg-fill lg-possible"></span><span>Possibly flooded</span></div>
-        <div class="lg-row"><span class="lg-fill lg-unknown"></span><span>Unknown: no data</span></div>
+        <div class="lg-row"><span class="lg-ramp"><i></i><i></i><i></i><i></i></span><span>Likely flooded<small>USACE mapped extent · depth from USGS marks + lidar: 0–0.3 · 0.3–0.6 · 0.6–1.2 · over 1.2 m</small></span></div>
+        <div class="lg-row"><span class="lg-fill lg-possible"></span><span>Possibly flooded<small>mapped by USACE, depth not resolved</small></span></div>
+        <div class="lg-row"><span class="lg-line lg-reach"></span><span>Edge of measured reach<small>depths beyond it: lower confidence</small></span></div>
+        <div class="lg-row"><span class="lg-fill lg-unknown"></span><span>Unknown: no data<small>outside the analysis area</small></span></div>
       </div>
       <div class="lg-group">
         <h4>Roads</h4>
@@ -130,6 +135,16 @@
     <div class="map-gesture-hint" id="map-gesture-hint" aria-hidden="true">
       <span>Two-finger ↔ rotate</span><i></i><span>↕ zoom</span>
     </div>
+
+    <section class="levels" id="levels" hidden aria-label="Water level">
+      <button class="lv-play" type="button" id="lv-play" aria-label="Play the rise to the measured peak"><span data-icon="play"></span></button>
+      <div class="lv-main">
+        <div class="lv-head"><h3 class="sec-label">Water level</h3><span class="lv-value" id="lv-value">Measured peak</span></div>
+        <input type="range" id="lv-range" min="0" max="8" step="1" value="8" aria-label="Water level below the measured peak" aria-valuetext="Measured peak">
+        <div class="lv-scale" aria-hidden="true"><span>−2.0 m</span><span>−1.0 m</span><span>Peak</span></div>
+        <p class="lv-note">Levels below the measured Harvey peak, filled from Brays Bayou over lidar ground. Not a recorded time series: high-water marks record only the peak.</p>
+      </div>
+    </section>
 
     <footer class="timeline" id="timeline" aria-label="Analysis replay">
       <button class="play" type="button" id="tl-play" aria-label="Play analysis replay"><span data-icon="play"></span></button>
