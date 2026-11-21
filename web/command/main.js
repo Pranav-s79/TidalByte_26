@@ -130,6 +130,48 @@ document.getElementById('cam-overview').addEventListener('click', () => scene.fl
 document.getElementById('cam-street').addEventListener('click', () => (state.selected ? scene.flyToFeature(state.selected, { range: 180, pitch: -14 }) : scene.streetLevel()));
 document.getElementById('cam-top').addEventListener('click', () => scene.topDown());
 document.getElementById('cam-north').addEventListener('click', () => scene.resetNorth());
+
+// ---------------------------------------------------------------- demo mode
+// Close orbit over the flooded houses → the Linkview Dr high-water mark's evidence → route options.
+// Touching the map, Esc or the Demo button again stops it.
+const DEMO_PIN = '22857';
+let demo = null;
+const demoBtn = document.getElementById('demo-btn');
+async function runDemo() {
+  if (demo) { demo.abort(); return; }
+  const pin = scene.pinInfo(DEMO_PIN);
+  if (!pin) { ui.toast('Demo needs the replay data; it has not loaded.', 'error', 4000); return; }
+  demo = new AbortController();
+  const { signal } = demo;
+  const stop = () => demo?.abort();
+  const canvas = document.getElementById('cesium');
+  canvas.addEventListener('pointerdown', stop, { signal });
+  canvas.addEventListener('wheel', stop, { signal });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') stop(); }, { signal });
+  const wait = (ms) => new Promise((r) => { const t = setTimeout(r, ms); signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true }); });
+  demoBtn.setAttribute('aria-pressed', 'true');
+  try {
+    stopPlay(); select(null);
+    ['left', 'right', 'timeline'].forEach((id) => ui.setCollapsed(id, true));
+    setLayer('water', true); setLayer('evidence', true);
+    const [lon, lat] = pin.feature.geometry.coordinates;
+    await scene.orbit(lon, lat, { range: 150, pitch: -22, seconds: 16, signal });
+    if (signal.aborted) return;
+    select(pin);
+    await scene.orbit(lon, lat, { range: 120, pitch: -18, seconds: 9, turns: 0.2, signal });
+    if (signal.aborted) return;
+    ui.setCollapsed('right', true); ui.setCollapsed('left', false);
+    document.getElementById('sec-route').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    const doc = await Promise.race([routing.demoTrip(), wait(5 * 60e3)]);
+    if (signal.aborted || !doc || !doc.options) return;
+    await wait(2600);
+    for (const o of doc.options) { if (signal.aborted) return; routing.highlight(o.id); await wait(3800); }
+  } finally {
+    demo.abort(); demo = null;
+    demoBtn.setAttribute('aria-pressed', 'false');
+  }
+}
+demoBtn.addEventListener('click', runDemo);
 // ---------------------------------------------------------------- observations
 function renderLists() {
   ui.renderStats(state.data);

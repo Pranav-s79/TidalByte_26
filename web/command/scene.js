@@ -693,6 +693,30 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(CENTER[0] - 0.01, CENTER[1] - 0.09, 9000),
       orientation: { heading: Cesium.Math.toRadians(8), pitch: Cesium.Math.toRadians(-48), roll: 0 } });
   }
+  // Demo mode: fly in, then circle a point for `seconds`. Resolves when done or when `signal` aborts.
+  // The Google 3D city sits at ellipsoid heights, so aim with its measured NAVD88 offset there.
+  function orbit(lon, lat, { range = 150, pitch = -22, seconds = 14, turns = 1, signal } = {}) {
+    const lift = mode === 'photorealistic' ? photorealisticLayer?.alignment?.offset ?? 0 : 0;
+    const target = Cesium.Cartesian3.fromDegrees(lon, lat, groundH(lon, lat, 2) + lift);
+    const h0 = viewer.camera.heading; const p = Cesium.Math.toRadians(pitch);
+    return new Promise((resolve) => {
+      const done = () => { viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); resolve(); };
+      signal?.addEventListener('abort', () => viewer.camera.cancelFlight(), { once: true });
+      viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(target, 1), {
+        offset: new Cesium.HeadingPitchRange(h0, p, range), duration: dur(2.6),
+        easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT, cancel: resolve,
+        complete: () => {
+          const t0 = performance.now(); const spin = reduceMotion() ? 0 : turns * 2 * Math.PI;
+          const frame = (now) => {
+            if (signal?.aborted) { done(); return; }
+            const t = Math.min(1, (now - t0) / (seconds * 1000));
+            viewer.camera.lookAt(target, new Cesium.HeadingPitchRange(h0 + t * spin, p, range));
+            if (t < 1) requestAnimationFrame(frame); else done();
+          };
+          requestAnimationFrame(frame);
+        } });
+    });
+  }
 
   // ---------------------------------------------------------------- picking
   const RANK = { pin: 0, camera: 0, road: 1, water: 2, unknown: 3 };
@@ -735,7 +759,7 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   return {
     viewer, addContext, useTerrain, setSatellite, addCameras, addFloodSurface, addBuildings, addWater, addUnknown, addRoads, addPin, setLayer, setMode, select, setClosure, pulseRing,
     groundH, // operational-map ground height (lidar terrain when loaded, else 0) plus a lift
-    flyOverview, flyToPoint, flyToFeature, streetLevel, topDown, intro,
+    flyOverview, flyToPoint, flyToFeature, streetLevel, topDown, intro, orbit,
     // Orbit around the point at screen centre until north is up, keeping tilt and distance.
     resetNorth: () => {
       const [lon, lat] = centerOnScreen();

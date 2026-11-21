@@ -597,3 +597,5 @@ li[data-state="error"] .ld-ic { border-color: var(--red); background: var(--red-
 .rt-caveats { font-size: 11px; color: var(--text-3, #8b98ab); }
 .rt-caveats ul { margin: 6px 0 0 16px; padding: 0; }
 body.route-picking #cesium { cursor: crosshair; }
+
+#demo-btn[aria-pressed="true"] { color: var(--cyan-2); border-color: var(--cyan); background: var(--cyan-dim); }

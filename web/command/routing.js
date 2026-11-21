@@ -149,6 +149,7 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
     return { value: Math.round(v * 100) / 100 };
   }
   const routeKey = (o) => o.geometry.coordinates.map((c) => c.join(',')).join(';');
+  let onResults = null; // demo mode waits here for the presenter's own search
 
   // rerun: repeat the last request (its limit, vehicle and switch) with the current closures, so editing the
   // form without pressing Find never changes what a re-plan uses.
@@ -178,6 +179,7 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
       st.doc = doc; st.req = req;
       keepChoice(doc);
       render(); draw(); if (!rerun) flyToRoutes();
+      onResults?.(doc); onResults = null;
     } catch (err) {
       toast(err.message, 'error', 6000);
     } finally {
@@ -355,5 +357,15 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
     redraw: draw,
     refresh: render,
     rerun: () => { if (st.req) findRoutes({ rerun: true }); },
+    // Demo mode: load the demo trip and wait for options. Runs the search only if a person already typed a
+    // limit; otherwise the presenter enters it (rule 2: the page never fills the limit).
+    demoTrip: () => {
+      setPicking(null);
+      setPoints({ start: DEMO_TRIP.start, end: DEMO_TRIP.end, startName: 'Newcastle Drive', endName: 'Lymbar Drive' });
+      const results = new Promise((resolve) => { onResults = resolve; });
+      if ($('#rt-limit').value) findRoutes(); else { $('#rt-limit').focus(); toast('Enter the depth limit your agency set, then press Find route options.', 'info', 6000); }
+      return results;
+    },
+    highlight: (id) => { st.active = id; render(); draw(); document.querySelector(`[data-focus="card-${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); },
   };
 }
