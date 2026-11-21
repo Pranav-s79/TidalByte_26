@@ -2,6 +2,7 @@ numpy
 scipy
 rasterio
 osmnx
+networkx
 requests
 pytest
 torch          # Linux CPU machine (e.g. Brev)? Install the CPU-only wheels first:
