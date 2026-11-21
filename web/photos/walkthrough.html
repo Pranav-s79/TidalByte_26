@@ -30,34 +30,45 @@
     .frame figcaption { padding: .65rem .9rem; font-size: .76rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .3rem 1rem; justify-content: space-between; }
     .explain { border: 1px solid var(--line); border-top: 4px solid var(--teal); border-radius: .75rem; background: #fff; padding: 1.2rem 1.3rem; }
     .explain h2 { margin-bottom: .5rem; }
-    .explain > p { margin: .4rem 0 .8rem; }
-    .lede { color: var(--muted); font-size: .9rem; }
+    .lede { color: var(--muted); font-size: .9rem; margin: .4rem 0 .8rem; }
     .chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: .6rem 0; padding: 0; list-style: none; }
     .chips li { background: #fff6d6; border: 1px solid #f0cf6a; border-radius: 2rem; padding: .15rem .6rem; font-size: .8rem; font-weight: 600; }
-    .read { display: grid; grid-template-columns: 2.8rem 1fr; gap: .8rem; align-items: center; border-top: 1px solid var(--line); padding: .7rem 0; }
+    .read { border-top: 1px solid var(--line); padding: .6rem 0; font-size: .9rem; }
     .read b { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
     .math { font-variant-numeric: tabular-nums; }
     .math strong { color: #174d45; }
-    .gauge { width: 2.8rem; height: 6.5rem; }
-    .gauge .obj { fill: #f3f6f4; stroke: var(--ink); stroke-width: 1.5; }
-    .gauge .range { fill: #9fd2e6; }
-    .gauge .water { fill: #2b7fa8; }
-    .gauge .ref { stroke: #d88e1a; stroke-width: 2; stroke-dasharray: 3 2; }
-    .gauge .hatch { fill: url(#hatch); stroke: #8a9a9f; stroke-width: 1.5; }
-    .axis { position: relative; margin: 1rem 0 .4rem; }
+    .scene { display: block; width: 100%; height: auto; background: #fbfcfb; }
+    .scene text { font: 600 13px Inter, -apple-system, sans-serif; }
+    .scene .bldg { fill: #eef1f0; stroke: #c4cfcd; }
+    .scene .pane { fill: #e1e7e6; stroke: #c4cfcd; }
+    .scene .ctx { fill: #8a9a9f; font-weight: 500; }
+    .scene .body { fill: #dfe6e8; stroke: #4e626b; stroke-width: 1.5; }
+    .scene .tire { fill: #39474d; }
+    .scene .rim { fill: #b9c4c7; }
+    .scene .curb { fill: #c9cfcd; stroke: #4e626b; stroke-width: 1.5; }
+    .scene .ground { stroke: #192d35; stroke-width: 2; }
+    .scene .tick { stroke: #8a9a9f; stroke-width: 3; }
+    .scene .tick.used { stroke: #d88e1a; stroke-width: 4; }
+    .scene .ref { fill: #4e626b; paint-order: stroke; stroke: #fbfcfb; stroke-width: 4px; }
+    .scene .ref.used { fill: #a15f00; font-weight: 800; }
+    .scene .wband { fill: #2b7fa8; fill-opacity: .22; }
+    .scene .wline { stroke: #174d63; stroke-width: 1.5; }
+    .scene .wlab { fill: #174d63; font-weight: 800; paint-order: stroke; stroke: #fbfcfb; stroke-width: 4px; }
+    .thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin: .4rem 0 .8rem; }
+    .thumbs img { border-radius: .4rem; max-height: 9rem; object-fit: cover; }
+    .legend { list-style: none; padding: 0; margin: .2rem 0 .8rem; display: flex; flex-wrap: wrap; gap: .35rem; }
+    .legend li { border: 1px solid var(--line); border-radius: 2rem; padding: .15rem .6rem; font-size: .78rem; font-variant-numeric: tabular-nums; }
+    .legend li.used { border-color: #d88e1a; background: #fff3df; color: #7a4a00; font-weight: 700; }
+    .axis { margin: 1rem 0 .4rem; }
     .row { display: grid; grid-template-columns: 3.6rem 1fr; align-items: center; height: 2.2rem; font-size: .76rem; font-weight: 650; color: var(--muted); }
     .track { position: relative; height: 100%; border-left: 1px solid var(--line); }
     .bar { position: absolute; top: 50%; height: .55rem; transform: translateY(-50%); background: #2b7fa8; border-radius: 1rem; min-width: 4px; }
     .bar::after { content: ""; position: absolute; left: 50%; top: 50%; width: .8rem; height: .8rem; border-radius: 50%; background: #fff; border: 3px solid #174d63; transform: translate(-50%, -50%); }
+    .num { position: absolute; top: 50%; transform: translateY(-50%); padding-left: .5rem; color: #174d45; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .none { position: absolute; top: 50%; transform: translateY(-50%); left: .4rem; padding: .1rem .5rem; border: 1px dashed #8a9a9f; border-radius: .3rem;
       background: repeating-linear-gradient(135deg, #eef1f0 0 4px, #fff 4px 8px); color: #4e626b; font-weight: 600; }
-    .band { position: absolute; top: 0; bottom: 1.4rem; background: rgba(8, 100, 89, .12); border-left: 2px solid var(--teal); border-right: 2px solid var(--teal); }
     .ticks { position: relative; height: 1.4rem; margin-left: 3.6rem; font-size: .68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
     .ticks span { position: absolute; transform: translateX(-50%); top: .3rem; }
-    .badge { display: inline-block; border-radius: 2rem; padding: .2rem .7rem; font-size: .76rem; font-weight: 700; }
-    .badge.ok { background: #e1f1ec; color: #0b5249; border: 1px solid #9ccfc4; }
-    .badge.review { background: #fff0cb; color: #785321; border: 1px solid #efcf88; }
-    .verdict { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .6rem; font-size: .88rem; }
     .check { border-top: 1px solid var(--line); padding: .6rem 0; font-size: .88rem; }
     .check .mark { font-weight: 800; margin-right: .35rem; }
     .yes { color: #0b5249; } .no { color: #9a3b12; } .na { color: var(--muted); }
@@ -75,15 +86,12 @@
   </style>
 </head>
 <body>
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="6" height="6" fill="#fff"/><line x1="0" y1="0" x2="0" y2="6" stroke="#b5c2c4" stroke-width="3"/></pattern></defs></svg>
   <header><nav aria-label="Field photos">
     <span class="brand"><span class="mark" aria-hidden="true">≈</span>TidalByte</span>
     <a href="index.html">← Piney Point reading</a>
   </nav></header>
   <main>
-    <p class="overline">Recorded run <span>/</span> Hurricane Harvey photos</p>
+    <p class="overline">Recorded run <span>/</span> Flood photos</p>
     <h1>How a photo becomes a depth reading</h1>
     <p class="subtitle">Saved output of the real pipeline, replayed: a PyTorch detector, then three Nemotron reads per photo.
       Every reading stays AI-proposed until a person reviews it.</p>
@@ -105,7 +113,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const runs = typeof recordedRuns === 'undefined' ? [] : recordedRuns;
     const heights = typeof referenceHeights === 'undefined' ? [] : referenceHeights;
-    const STEPS = ['PyTorch finds objects', 'Where the waterline sits', 'Three reads, compared', 'Second opinion', "In Nemotron's words"];
+    const STEPS = ['PyTorch finds objects', 'The references, drawn', 'Three reads, side by side', 'Second opinion', "In Nemotron's words"];
     const NEEDS = [  // mirrors NEEDS in flood/read_photo.py
       [['tire', 'wheel', 'hub', 'car', 'suv', 'sedan', 'vehicle', 'truck', 'bumper', 'door'], ['car', 'truck', 'bus', 'motorcycle'], 'vehicle'],
       [['knee', 'adult', 'person', 'waist', 'ankle'], ['person'], 'person'],
@@ -118,8 +126,8 @@
     const reads = (r) => r.readings || [r];
     const span = (r) => r.depth_m_low == null ? null : n2(r.depth_m_low) + '–' + n2(r.depth_m_high) + ' m';
     const rowFor = (ref) => heights.find((h) => h.name.toLowerCase() === String(ref || '').toLowerCase());
-    const badge = (r) => r.status === 'needs_review' ? '<span class="badge review">⚠ Needs review</span>'
-      : '<span class="badge ok">◇ AI-proposed · awaiting a person</span>';
+    const noDepth = (x) => x.error && x.status !== 'ai_proposed' && !x.error.includes('PyTorch') ? 'no reading'
+      : x.water_visible ? 'water, depth unknown' : 'no water';
     let photo = 0, step = 0, timer = null;
 
     if (!runs.length) {
@@ -154,9 +162,7 @@
     function stop() { clearInterval(timer); timer = null; $('#play').textContent = '▶ Play'; }
 
     function images(r) {
-      const crops = r.detector?.crops || [];
       if (step === 0 || step === 3) return [[r.boxes, 'Photo with the detector’s boxes']];
-      if (step === 1 && crops.length) return crops.map((c) => [c.src, 'Close-up of the ' + c.label + ' that Nemotron was shown']);
       return [[r.file, r.title]];
     }
 
@@ -168,11 +174,13 @@
       document.querySelectorAll('.steps button').forEach((b, i) => i === s ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current'));
       const imgs = images(r);
       $('.imgs').className = 'imgs' + (imgs.length > 1 ? ' two' : '');
-      $('.imgs').innerHTML = imgs.map(([src, alt]) => `<img src="${esc(src)}" alt="${esc(alt)}">`).join('');
+      $('.imgs').innerHTML = s === 1 ? scene(r) : imgs.map(([src, alt]) => `<img src="${esc(src)}" alt="${esc(alt)}">`).join('');
       const where = r.lat != null ? `${Math.abs(r.lat).toFixed(5)}° N, ${Math.abs(r.lon).toFixed(5)}° W`
         : 'Location not stated by the source · not placed on the map';
-      $('.frame figcaption').innerHTML = `<span>${esc(r.taken)} · ${where}</span><a href="${esc(r.url)}">${esc(r.credit)} ↗</a>`;
-      $('.explain').innerHTML = `<h2>${STEPS[s]}</h2>` + [detector, waterline, compare, crossCheck, words][s](r);
+      $('.frame figcaption').innerHTML = s === 1
+        ? '<span>Drawn to scale from the sourced height table. The car, person and building are generic, not the ones in the photo.</span>'
+        : `<span>${esc(r.taken)} · ${where}</span><a href="${esc(r.url)}">${esc(r.credit)} ↗</a>`;
+      $('.explain').innerHTML = `<h2>${STEPS[s]}</h2>` + [detector, references, compare, crossCheck, words][s](r);
       $('.stamp').textContent = `Recorded ${new Date(r.analyzed_at).toLocaleString()} · ${r.model.split('/').pop()} · `
         + `${reads(r).length} reads at once, ${r.elapsed_s} s · model output, not a measurement`;
     }
@@ -187,60 +195,102 @@
         <p class="lede">The two largest are cut out with a margin and sent to Nemotron as close-ups.</p>`;
     }
 
-    function gauge(x) {
-      const row = rowFor(x.reference_object);
-      if (!row || x.fraction_low == null) {
-        return '<svg class="gauge" viewBox="0 0 44 120" aria-hidden="true"><rect x="8" y="10" width="28" height="100" class="hatch"/></svg>';
+    // --- The references, drawn: a to-scale side view of the height table, with each read's waterline ---
+    const GROUND = 250, PX = 150;            // ground line in the drawing; pixels per metre
+    const Y = (m) => (GROUND - m * PX).toFixed(1);
+    const PLACES = [                         // [words in a table row's name, short label, x in the drawing]
+      [['top of tire'], 'tire top', 130],
+      [['hub'], 'hub center', 285],
+      [['curb'], 'curb top', 36],
+      [['ankle'], 'ankle', 418],
+      [['knee'], 'kneecap', 418],
+      [['waist', 'navel'], 'waist', 418],
+    ];
+    const placeFor = (name) => PLACES.find(([words]) => words.some((w) => name.toLowerCase().includes(w)));
+
+    function scene(r) {
+      const used = new Set(reads(r).map((x) => String(x.reference_object || '').toLowerCase()));
+      const wheel = (cx) => `<circle cx="${cx}" cy="${Y(0.33)}" r="${0.33 * PX}" class="tire"/>
+        <circle cx="${cx}" cy="${Y(0.33)}" r="${0.2 * PX}" class="rim"/>`;
+      let marks = '', labels = '';
+      for (const h of heights) {
+        const place = placeFor(h.name);
+        if (!place) continue;
+        const [, label, x] = place, on = used.has(h.name.toLowerCase()) ? ' used' : '';
+        const mid = (h.height_m_low + h.height_m_high) / 2;
+        marks += `<line x1="${x}" x2="${x}" y1="${Y(h.height_m_high)}" y2="${Y(h.height_m_low)}" class="tick${on}"/>
+          <line x1="${x - 6}" x2="${x + 6}" y1="${Y(h.height_m_high)}" y2="${Y(h.height_m_high)}" class="tick${on}"/>
+          <line x1="${x - 6}" x2="${x + 6}" y1="${Y(h.height_m_low)}" y2="${Y(h.height_m_low)}" class="tick${on}"/>`;
+        labels += label === 'curb top'
+          ? `<text x="${x}" y="${+Y(h.height_m_high) - 10}" text-anchor="middle" class="ref${on}">${label}</text>`
+          : `<text x="${x + 12}" y="${+Y(mid) + 4}" class="ref${on}">${label}</text>`;
       }
-      const y = (f) => 110 - 100 * f;
-      return `<svg class="gauge" viewBox="0 0 44 120" aria-hidden="true"><rect x="8" y="10" width="28" height="100" class="obj"/>
-        <rect x="8" y="${y(x.fraction_high)}" width="28" height="${100 * x.fraction_high}" class="range"/>
-        <rect x="8" y="${y(x.fraction_low)}" width="28" height="${100 * x.fraction_low}" class="water"/>
-        <line x1="2" x2="42" y1="10" y2="10" class="ref"/></svg>`;
+      const wet = reads(r).map((x, i) => [x, i]).filter(([x]) => x.depth_m_low != null);
+      let lastY = -99;
+      const water = wet.map(([x, i]) => `<rect x="0" width="640" y="${Y(x.depth_m_high)}" height="${((x.depth_m_high - x.depth_m_low) * PX).toFixed(1)}" class="wband"/>
+        <line x1="0" x2="640" y1="${Y(x.depth_m_high)}" y2="${Y(x.depth_m_high)}" class="wline"/>`).join('');
+      const tags = wet.slice().sort((a, b) => b[0].depth_m_high - a[0].depth_m_high).map(([x, i]) => {
+        const y = Math.max(+Y(x.depth_m_high) - 4, lastY + 14); lastY = y;
+        return `<text x="634" y="${y}" text-anchor="end" class="wlab">Read ${i + 1}: ${span(x)}</text>`;
+      }).join('');
+      return `<svg class="scene" viewBox="0 0 640 ${GROUND + 12}" role="img"
+        aria-label="To-scale drawing of the reference heights with each read's waterline">
+        <rect x="470" y="${Y(1.55)}" width="160" height="${1.55 * PX}" class="bldg"/>
+        <rect x="490" y="${Y(1.35)}" width="36" height="34" class="pane"/><rect x="574" y="${Y(1.35)}" width="36" height="34" class="pane"/>
+        <rect x="532" y="${Y(1.05)}" width="36" height="${1.05 * PX}" class="pane"/>
+        <text x="550" y="${+Y(1.55) + 18}" text-anchor="middle" class="ctx">building</text>
+        <text x="550" y="${+Y(1.55) + 34}" text-anchor="middle" class="ctx">context only</text>
+        <rect x="8" y="${Y(0.125)}" width="56" height="${0.125 * PX}" class="curb"/>
+        <path class="body" d="M78 ${Y(0.3)} L78 ${Y(0.8)} Q84 ${Y(0.92)} 120 ${Y(0.96)} L170 ${Y(1.4)} L262 ${Y(1.4)}
+          L312 ${Y(0.98)} Q338 ${Y(0.94)} 338 ${Y(0.8)} L338 ${Y(0.3)} Z"/>
+        ${wheel(130)}${wheel(285)}
+        <circle cx="418" cy="${Y(1.6)}" r="12" class="body"/>
+        <rect x="406" y="${Y(1.45)}" width="24" height="${0.55 * PX}" rx="6" class="body"/>
+        <rect x="408" y="${Y(0.9)}" width="9" height="${0.9 * PX}" class="body"/><rect x="419" y="${Y(0.9)}" width="9" height="${0.9 * PX}" class="body"/>
+        ${water}
+        <line x1="0" x2="640" y1="${GROUND}" y2="${GROUND}" class="ground"/>
+        ${marks}${labels}${tags}
+      </svg>`;
     }
 
-    function waterline(r) {
+    function references(r) {
       const rows = reads(r).map((x, i) => {
         const row = rowFor(x.reference_object);
         let text;
         if (x.error && x.error.startsWith('model call failed')) text = '<span class="issue">This read failed: ' + esc(x.error) + '</span>';
-        else if (x.fraction_low == null) text = x.water_visible
-          ? 'Water seen, but it touches no object in the height table. <strong>Depth unknown.</strong>'
-          : '<strong>No floodwater seen.</strong>';
-        else if (!row) text = `Named “${esc(x.reference_object)}”, which is not in the height table. <span class="issue">Sent to review.</span>`;
-        else text = `<span class="math">Water reaches <strong>${n2(x.fraction_low)}–${n2(x.fraction_high)}</strong> of the way up to
-          the ${esc(row.name)} (${n2(row.height_m_low)}–${n2(row.height_m_high)} m)<br>→ depth
-          <strong>${span(x)}</strong></span>`;
-        return `<div class="read">${gauge(x)}<div><b>Read ${i + 1}</b>${text}</div></div>`;
+        else if (x.fraction_low == null) text = x.error ? '<span class="issue">' + esc(x.error) + '</span>'
+          : x.water_visible ? 'Water seen, but it touches no object in the height table: no number.' : 'No floodwater seen.';
+        else if (!row) text = `Named “${esc(x.reference_object)}”, which is not in the height table: no number.`;
+        else text = `<span class="math">${esc(row.name)} (${n2(row.height_m_low)}–${n2(row.height_m_high)} m)
+          × <strong>${n2(x.fraction_low)}–${n2(x.fraction_high)}</strong> of the way up = <strong>${span(x)}</strong></span>`;
+        return `<div class="read"><b>Read ${i + 1}</b>${text}</div>`;
       }).join('');
-      return `<p class="lede">Nemotron picks a row of the sourced height table and says how far up it the water reaches.
-        Code does the multiplication, so the model never makes up a number in metres.
-        <span style="color:#d88e1a">- - -</span> marks the table’s point; blue is the water; hatched means no reference.</p>${rows}`;
+      const used = new Set(reads(r).map((x) => String(x.reference_object || '').toLowerCase()));
+      const legend = heights.map((h) => `<li class="${used.has(h.name.toLowerCase()) ? 'used' : ''}">${esc(placeFor(h.name)?.[1] || h.name)}
+        ${n2(h.height_m_low)}–${n2(h.height_m_high)} m</li>`).join('');
+      const crops = r.detector?.crops || [];
+      const thumbs = crops.length ? `<div class="thumbs">${crops.map((c) => `<img src="${esc(c.src)}" alt="Close-up of the ${esc(c.label)} Nemotron was shown">`).join('')}</div>`
+        : '<p class="lede">No close-ups: the detector found no vehicle, person or sign.</p>';
+      return `<p class="lede">Nemotron picks a reference from the sourced height table and says how far up it the water reaches;
+        code does the multiplication. In the drawing, orange marks the references the reads used and blue is where each read puts the water.</p>
+        <b class="lede">Close-ups Nemotron was shown</b>${thumbs}<b class="lede">Height table</b><ul class="legend">${legend}</ul>${rows}`;
     }
 
     function compare(r) {
       const rs = reads(r);
-      const top = Math.max(0.6, ...rs.map((x) => x.depth_m_high ?? 0)) * 1.15;
+      const top = Math.max(0.6, ...rs.map((x) => x.depth_m_high ?? 0)) * 1.3;
       const pct = (v) => (100 * v / top).toFixed(2) + '%';
       const every = top > 1.2 ? 0.4 : top > 0.6 ? 0.2 : 0.1;
       const ticks = [];
       for (let v = 0; v <= top + 1e-9; v += every) ticks.push(`<span style="left:${pct(v)}">${v.toFixed(1)}</span>`);
-      const agreed = r.status !== 'needs_review' && r.depth_m_low != null && rs.length > 1;
-      const band = agreed ? `<div class="band" style="left:calc(3.6rem + (100% - 3.6rem) * ${r.depth_m_low / top});
-        width:calc((100% - 3.6rem) * ${(r.depth_m_high - r.depth_m_low) / top})" title="Range kept: ${span(r)}"></div>` : '';
       const rows = rs.map((x, i) => `<div class="row">Read ${i + 1}<div class="track">${x.depth_m_low == null
-        ? `<span class="none">${x.error ? 'no reading' : x.water_visible ? 'water, depth unknown' : 'no water'}</span>`
-        : `<span class="bar" style="left:${pct(x.depth_m_low)};width:${pct(x.depth_m_high - x.depth_m_low)}" title="${span(x)}"></span>`}
-        </div></div>`).join('');
-      const verdict = r.status === 'needs_review'
-        ? `The reads don’t back one answer, so no depth is passed on.<br><span class="issue">${esc(r.error || '')}</span>`
-        : r.depth_m_low != null ? `The reads share a depth. The range kept is all of them together: <strong>${span(r)}</strong>. Routing plans on the top end.`
-        : rs.length > 1 ? 'The reads agree: no depth can be read from this photo.' : 'One read only.';
+        ? `<span class="none">${noDepth(x)}</span>`
+        : `<span class="bar" style="left:${pct(x.depth_m_low)};width:${pct(x.depth_m_high - x.depth_m_low)}"></span>
+           <span class="num" style="left:${pct(x.depth_m_high)}">${span(x)}</span>`}</div></div>`).join('');
       return `<p class="lede">The same photo goes to Nemotron ${rs.length === 1 ? 'once' : rs.length + ' times at once'}.
-        The answer is kept only if every read allows at least one common depth.</p>
-        <div class="axis">${band}${rows}<div class="ticks">${ticks.join('')}</div></div>
-        <p class="lede" style="text-align:right;margin:0">depth (m)</p>
-        <div class="verdict">${badge(r)}</div><p style="margin-top:.5rem">${verdict}</p>`;
+        Each bar is one read’s depth range.</p>
+        <div class="axis">${rows}<div class="ticks">${ticks.join('')}</div></div>
+        <p class="lede" style="text-align:right;margin:0">depth (m)</p>`;
     }
 
     function crossCheck(r) {
@@ -249,30 +299,27 @@
         const ref = x.reference_object, low = String(ref || '').toLowerCase();
         const need = NEEDS.find(([words]) => words.some((w) => low.includes(w)));
         let mark = '–', cls = 'na', text;
-        if (x.error && x.error.includes('PyTorch detector found no')) { mark = '✗'; cls = 'no'; text = esc(x.error) + '. <strong>Sent to review.</strong>'; }
+        if (x.error && x.error.includes('PyTorch detector found no')) { mark = '✗'; cls = 'no'; text = esc(x.error) + '.'; }
         else if (!ref || x.depth_m_low == null) text = 'No depth was read, so there is nothing to check.';
         else if (!need) text = `Measured against “${esc(ref)}”. The detector has no class for that, so there is nothing to check.`;
         else if (!Array.isArray(objs)) text = 'Detector unavailable for this run.';
         else {
           const hit = objs.filter((o) => need[1].includes(o.label));
           mark = '✓'; cls = 'yes';
-          text = `Measured against “${esc(ref)}”; the detector found a ${need[2]}: ${hit.map((o) => esc(o.label) + ' ' + Math.round(o.score * 100) + '%').join(', ')}.`;
+          text = `Measured against “${esc(ref)}”; the detector found a ${need[2]}: ${hit.slice(0, 4).map((o) => esc(o.label) + ' ' + Math.round(o.score * 100) + '%').join(', ')}${hit.length > 4 ? '…' : ''}.`;
         }
         return `<div class="check"><span class="mark ${cls}">${mark}</span><b>Read ${i + 1}.</b> ${text}</div>`;
       }).join('');
       return `<p class="lede">Two different models must agree. If Nemotron reads the water against a car, a person or a sign
-        that the detector did not find, the depth is dropped and the photo goes to a person.</p>${lines}
-        <div class="verdict">${badge(r)}</div>`;
+        that the detector did not find, the depth is dropped and the photo goes to a person.</p>${lines}`;
     }
 
     function words(r) {
-      const quotes = reads(r).map((x, i) => x.reasoning
-        ? `<blockquote>“${esc(x.reasoning)}”<cite>Read ${i + 1}, word for word</cite></blockquote>`
-        : `<p class="issue">Read ${i + 1} returned no reasoning${x.error ? ': ' + esc(x.error) : ''}.</p>`).join('');
-      const depth = r.depth_m_low != null ? span(r) : 'unknown';
-      return `${quotes}<div class="verdict">${badge(r)} <span>Depth: <strong>${depth}</strong></span></div>
-        <p class="lede" style="margin-top:.6rem">A person confirms or rejects this before it counts.
-        It is never a road closure or a statement that a road is passable.</p>`;
+      return reads(r).map((x, i) => x.reasoning
+        ? `<blockquote>“${esc(x.reasoning)}”<cite>Read ${i + 1}, word for word${x.depth_m_low != null ? ' · ' + span(x) : ''}</cite></blockquote>`
+        : `<p class="issue">Read ${i + 1} returned no reasoning${x.error ? ': ' + esc(x.error) : ''}.</p>`).join('')
+        + `<p class="lede" style="margin-top:.6rem">A person confirms or rejects every reading before it counts.
+        None is a road closure or a statement that a road is passable.</p>`;
     }
 
     const [hp, hs] = (location.hash.match(/^#(\d+)-(\d+)$/) || [0, 1, 1]).slice(1).map(Number);

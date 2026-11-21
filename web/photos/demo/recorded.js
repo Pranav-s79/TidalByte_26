@@ -27,35 +27,615 @@ const referenceHeights = [
 ];
 const recordedRuns = [
  {
-  "file": "piney-point-2017-08-27.jpg",
-  "title": "Buffalo Bayou at Piney Point",
-  "taken": "Aug 27, 2017, 10:45 CDT",
-  "lat": 29.749967,
-  "lon": -95.523117,
-  "credit": "USGS \u00b7 public domain",
-  "url": "https://www.usgs.gov/media/images/hurricane-harvey-flooding-buffalo-bayou-piney-point",
+  "file": "houston-lot-2017-08-27-a.jpg",
+  "title": "Cars in a flooded parking lot",
+  "taken": "Aug 27, 2017, 08:09 (camera clock)",
+  "lat": null,
+  "lon": null,
+  "credit": "R. Crap Mariner \u00b7 CC BY 2.0 \u00b7 resized",
+  "url": "https://commons.wikimedia.org/wiki/File:Hurricane-Tropical_Storm_Harvey_in_Houston_-_August_27_2017_AM_(36032743313).jpg",
   "water_visible": true,
-  "reference_object": "passenger car or small SUV tire, top of tire",
+  "reference_object": "passenger car or small SUV tire, top of tire / passenger car or small SUV wheel, center of hub",
   "fraction_low": null,
   "fraction_high": null,
-  "depth_m_low": null,
-  "depth_m_high": null,
-  "obstacles": [],
-  "confidence": "medium",
-  "reasoning": "The street is covered in flood water. The waterline on the detected car appears to sit about one-third of the way up from the ground to the top of the tire.",
-  "status": "needs_review",
-  "error": "3 reads disagree: 0.18-0.29 m, 0.24-0.43 m, 0.42-0.68 m",
+  "depth_m_low": 0.18,
+  "depth_m_high": 0.43,
+  "obstacles": [
+   {
+    "type": "stalled_vehicle",
+    "note": "white SUV"
+   },
+   {
+    "type": "stalled_vehicle",
+    "note": "beige sedan"
+   },
+   {
+    "type": "stalled_vehicle",
+    "note": "multiple cars submerged in floodwater blocking the road"
+   },
+   {
+    "type": "stalled_vehicle",
+    "note": "multiple cars submerged in street"
+   }
+  ],
+  "confidence": "high",
+  "reasoning": "Flood water covers the street, submerging the lower portions of multiple parked cars. The waterline on the front tire of the white SUV sits roughly one-third to halfway up the tire height.",
+  "status": "ai_proposed",
+  "error": null,
   "readings": [
    {
     "water_visible": true,
     "reference_object": "passenger car or small SUV tire, top of tire",
     "fraction_low": 0.3,
-    "fraction_high": 0.4,
+    "fraction_high": 0.5,
     "depth_m_low": 0.18,
-    "depth_m_high": 0.29,
+    "depth_m_high": 0.36,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "white SUV"
+     },
+     {
+      "type": "stalled_vehicle",
+      "note": "beige sedan"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Flood water covers the street, submerging the lower portions of multiple parked cars. The waterline on the front tire of the white SUV sits roughly one-third to halfway up the tire height.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV wheel, center of hub",
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.24,
+    "depth_m_high": 0.43,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "multiple cars submerged in floodwater blocking the road"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Floodwater covers the street and submerges the lower portions of several parked cars. The waterline on the white SUV's front tire appears to align with the center of the wheel hub.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV wheel, center of hub",
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.24,
+    "depth_m_high": 0.43,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "multiple cars submerged in street"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Flood water covers the street surface. The waterline on the foreground car tires aligns with the center of the wheel hubs.",
+    "status": "ai_proposed",
+    "error": null
+   }
+  ],
+  "agreeing": [
+   1,
+   2,
+   3
+  ],
+  "note": null,
+  "detector": {
+   "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
+   "objects": [
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      357,
+      497,
+      507,
+      563
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      579,
+      528,
+      981,
+      699
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      206,
+      501,
+      387,
+      573
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      480,
+      488,
+      618,
+      554
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      1068,
+      515,
+      1302,
+      635
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      1215,
+      507,
+      1436,
+      570
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.97,
+     "box": [
+      1295,
+      473,
+      1432,
+      510
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.96,
+     "box": [
+      809,
+      492,
+      1203,
+      675
+     ]
+    }
+   ],
+   "crops": [
+    {
+     "src": "demo/houston-lot-2017-08-27-a/07-car.jpg",
+     "label": "car"
+    },
+    {
+     "src": "demo/houston-lot-2017-08-27-a/01-car.jpg",
+     "label": "car"
+    }
+   ]
+  },
+  "boxes": "demo/houston-lot-2017-08-27-a-boxes.jpg",
+  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "analyzed_at": "2026-11-21T21:33:57+00:00",
+  "elapsed_s": 40.3
+ },
+ {
+  "file": "houston-lot-2017-08-27-b.jpg",
+  "title": "Same lot, same minute, another angle",
+  "taken": "Aug 27, 2017, 08:09 (camera clock)",
+  "lat": null,
+  "lon": null,
+  "credit": "R. Crap Mariner \u00b7 CC BY 2.0 \u00b7 resized",
+  "url": "https://commons.wikimedia.org/wiki/File:Hurricane-Tropical_Storm_Harvey_in_Houston_-_August_27_2017_AM_(36702214741).jpg",
+  "water_visible": true,
+  "reference_object": "passenger car or small SUV tire, top of tire",
+  "fraction_low": 1.0,
+  "fraction_high": 1.5,
+  "depth_m_low": 0.6,
+  "depth_m_high": 1.08,
+  "obstacles": [
+   {
+    "type": "stalled_vehicle",
+    "note": "submerged cars blocking the street"
+   },
+   {
+    "type": "stalled_vehicle",
+    "note": "multiple cars submerged in floodwater"
+   }
+  ],
+  "confidence": "high",
+  "reasoning": "Flood water covers the street and submerges the lower portions of multiple cars. The waterline on the visible sedans and SUVs is above the top of the tires, reaching up the lower body panels.",
+  "status": "ai_proposed",
+  "error": null,
+  "readings": [
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV tire, top of tire",
+    "fraction_low": 1.0,
+    "fraction_high": 1.5,
+    "depth_m_low": 0.6,
+    "depth_m_high": 1.08,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "submerged cars blocking the street"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Flood water covers the street and submerges the lower portions of multiple cars. The waterline on the visible sedans and SUVs is above the top of the tires, reaching up the lower body panels.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV tire, top of tire",
+    "fraction_low": 1.0,
+    "fraction_high": 1.5,
+    "depth_m_low": 0.6,
+    "depth_m_high": 1.08,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "multiple cars submerged in floodwater"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Flood water covers the street and submerges the tires of several parked cars, with the waterline sitting at or slightly above the top of the tires.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV tire, top of tire",
+    "fraction_low": 1.1,
+    "fraction_high": 1.4,
+    "depth_m_low": 0.66,
+    "depth_m_high": 1.01,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "submerged cars blocking the street"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Floodwater covers the tires and reaches the lower body panels of the parked cars. The waterline is visibly above the top of the tires on the beige sedan and white SUV.",
+    "status": "ai_proposed",
+    "error": null
+   }
+  ],
+  "agreeing": [
+   1,
+   2,
+   3
+  ],
+  "note": null,
+  "detector": {
+   "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
+   "objects": [
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      92,
+      198,
+      267,
+      270
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      355,
+      214,
+      762,
+      373
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      229,
+      184,
+      386,
+      261
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      845,
+      194,
+      1053,
+      306
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      993,
+      188,
+      1170,
+      243
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.99,
+     "box": [
+      0,
+      206,
+      135,
+      285
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.94,
+     "box": [
+      587,
+      179,
+      973,
+      349
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.88,
+     "box": [
+      1081,
+      157,
+      1171,
+      187
+     ]
+    }
+   ],
+   "crops": [
+    {
+     "src": "demo/houston-lot-2017-08-27-b/06-car.jpg",
+     "label": "car"
+    },
+    {
+     "src": "demo/houston-lot-2017-08-27-b/01-car.jpg",
+     "label": "car"
+    }
+   ]
+  },
+  "boxes": "demo/houston-lot-2017-08-27-b-boxes.jpg",
+  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "analyzed_at": "2026-11-21T21:34:37+00:00",
+  "elapsed_s": 40.5
+ },
+ {
+  "file": "houston-fence-2017-08-27.jpg",
+  "title": "Cars behind a fence",
+  "taken": "Aug 27, 2017, 08:11 (camera clock)",
+  "lat": null,
+  "lon": null,
+  "credit": "R. Crap Mariner \u00b7 CC BY 2.0 \u00b7 resized",
+  "url": "https://commons.wikimedia.org/wiki/File:Hurricane-Tropical_Storm_Harvey_in_Houston_-_August_27_2017_AM_(36032737983).jpg",
+  "water_visible": true,
+  "reference_object": "passenger car or small SUV wheel, center of hub",
+  "fraction_low": 0.8,
+  "fraction_high": 1.2,
+  "depth_m_low": 0.24,
+  "depth_m_high": 0.43,
+  "obstacles": [
+   {
+    "type": "stalled_vehicle",
+    "note": "black sedan"
+   },
+   {
+    "type": "stalled_vehicle",
+    "note": "sedans submerged in floodwater"
+   },
+   {
+    "type": "stalled_vehicle",
+    "note": "dark sedan"
+   },
+   {
+    "type": "stalled_vehicle",
+    "note": "green minivan"
+   }
+  ],
+  "confidence": "high",
+  "reasoning": "Floodwater covers the street and reaches the center of the wheels on the parked cars. The waterline aligns with the hub center of the black sedan on the left.",
+  "status": "ai_proposed",
+  "error": null,
+  "readings": [
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV wheel, center of hub",
+    "fraction_low": 0.9,
+    "fraction_high": 1.1,
+    "depth_m_low": 0.27,
+    "depth_m_high": 0.4,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "black sedan"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Floodwater covers the street and reaches the center of the wheels on the parked cars. The waterline aligns with the hub center of the black sedan on the left.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV wheel, center of hub",
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.24,
+    "depth_m_high": 0.43,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "sedans submerged in floodwater"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Flood water is clearly visible covering the street and submerging the lower portions of multiple cars. The waterline sits approximately at the center of the wheel hubs on the visible sedans.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": null,
+    "fraction_low": null,
+    "fraction_high": null,
+    "depth_m_low": null,
+    "depth_m_high": null,
+    "obstacles": [
+     {
+      "type": "stalled_vehicle",
+      "note": "black sedan"
+     },
+     {
+      "type": "stalled_vehicle",
+      "note": "dark sedan"
+     },
+     {
+      "type": "stalled_vehicle",
+      "note": "green minivan"
+     }
+    ],
+    "confidence": "high",
+    "reasoning": "Flood water covers the street and submerges the tires and lower bodies of multiple cars, appearing deeper than the highest reference point in the table.",
+    "status": "ai_proposed",
+    "error": null
+   }
+  ],
+  "agreeing": [
+   1,
+   2
+  ],
+  "note": "2 of 3 reads agree; read 3: water, no depth",
+  "detector": {
+   "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
+   "objects": [
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      800,
+      323,
+      1361,
+      527
+     ]
+    },
+    {
+     "label": "car",
+     "score": 1.0,
+     "box": [
+      197,
+      344,
+      692,
+      623
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.99,
+     "box": [
+      1246,
+      296,
+      1600,
+      488
+     ]
+    },
+    {
+     "label": "truck",
+     "score": 0.77,
+     "box": [
+      1532,
+      202,
+      1569,
+      241
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.66,
+     "box": [
+      1169,
+      413,
+      1348,
+      535
+     ]
+    }
+   ],
+   "crops": [
+    {
+     "src": "demo/houston-fence-2017-08-27/01-car.jpg",
+     "label": "car"
+    },
+    {
+     "src": "demo/houston-fence-2017-08-27/00-car.jpg",
+     "label": "car"
+    }
+   ]
+  },
+  "boxes": "demo/houston-fence-2017-08-27-boxes.jpg",
+  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "analyzed_at": "2026-11-21T21:35:24+00:00",
+  "elapsed_s": 46.6
+ },
+ {
+  "file": "ike-cars-2008-09-13.jpg",
+  "title": "Driving through floodwater (Hurricane Ike, 2008)",
+  "taken": "Sep 13, 2008",
+  "lat": null,
+  "lon": null,
+  "credit": "FEMA, Jocelyn Augustino \u00b7 public domain",
+  "url": "https://commons.wikimedia.org/wiki/File:FEMA_-_38450_-_Cars_going_through_flood_water_in_Texas.jpg",
+  "water_visible": true,
+  "reference_object": "passenger car or small SUV wheel, center of hub / passenger car or small SUV tire, top of tire",
+  "fraction_low": null,
+  "fraction_high": null,
+  "depth_m_low": 0.24,
+  "depth_m_high": 0.43,
+  "obstacles": [],
+  "confidence": "medium",
+  "reasoning": "Flood water covers the street surface. The waterline sits at approximately the center of the wheel hubs on the red truck and black SUV.",
+  "status": "ai_proposed",
+  "error": null,
+  "readings": [
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV wheel, center of hub",
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.24,
+    "depth_m_high": 0.43,
+    "obstacles": [],
+    "confidence": "high",
+    "reasoning": "Flood water covers the street surface. The waterline sits at approximately the center of the wheel hubs on the red truck and black SUV.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV wheel, center of hub",
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.24,
+    "depth_m_high": 0.43,
     "obstacles": [],
     "confidence": "medium",
-    "reasoning": "The street is covered in flood water. The waterline on the detected car appears to sit about one-third of the way up from the ground to the top of the tire.",
+    "reasoning": "Flood water covers the street, reaching approximately the center of the wheels on the red truck and black SUV as they drive through.",
     "status": "ai_proposed",
     "error": null
    },
@@ -68,24 +648,132 @@ const recordedRuns = [
     "depth_m_high": 0.43,
     "obstacles": [],
     "confidence": "medium",
-    "reasoning": "The street is completely covered in floodwater. The waterline reaches approximately halfway up the tires of the distant car with flashing lights.",
+    "reasoning": "Flood water covers the street where vehicles are driving. The waterline on the tires appears to reach approximately halfway up the tire sidewall.",
+    "status": "ai_proposed",
+    "error": null
+   }
+  ],
+  "agreeing": [
+   1,
+   2,
+   3
+  ],
+  "note": null,
+  "detector": {
+   "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
+   "objects": [
+    {
+     "label": "truck",
+     "score": 0.99,
+     "box": [
+      253,
+      495,
+      764,
+      668
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.98,
+     "box": [
+      790,
+      533,
+      1278,
+      743
+     ]
+    },
+    {
+     "label": "car",
+     "score": 0.94,
+     "box": [
+      33,
+      416,
+      200,
+      485
+     ]
+    }
+   ],
+   "crops": [
+    {
+     "src": "demo/ike-cars-2008-09-13/01-car.jpg",
+     "label": "car"
+    },
+    {
+     "src": "demo/ike-cars-2008-09-13/00-truck.jpg",
+     "label": "truck"
+    }
+   ]
+  },
+  "boxes": "demo/ike-cars-2008-09-13-boxes.jpg",
+  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "analyzed_at": "2026-11-21T21:36:22+00:00",
+  "elapsed_s": 58.5
+ },
+ {
+  "file": "piney-point-2017-08-27.jpg",
+  "title": "Buffalo Bayou at Piney Point",
+  "taken": "Aug 27, 2017, 10:45 CDT",
+  "lat": 29.749967,
+  "lon": -95.523117,
+  "credit": "USGS \u00b7 public domain",
+  "url": "https://www.usgs.gov/media/images/hurricane-harvey-flooding-buffalo-bayou-piney-point",
+  "water_visible": true,
+  "reference_object": "passenger car or small SUV tire, top of tire",
+  "fraction_low": 0.8,
+  "fraction_high": 1.2,
+  "depth_m_low": 0.48,
+  "depth_m_high": 0.86,
+  "obstacles": [],
+  "confidence": "medium",
+  "reasoning": "The street is completely covered in floodwater. The waterline reaches the tires of the distant car, aligning with the top of the tire reference point.",
+  "status": "ai_proposed",
+  "error": null,
+  "readings": [
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV wheel, center of hub",
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.24,
+    "depth_m_high": 0.43,
+    "obstacles": [],
+    "confidence": "medium",
+    "reasoning": "The street is covered in floodwater. The waterline on the distant car appears to reach approximately the center of the wheels or hubs.",
     "status": "ai_proposed",
     "error": null
    },
    {
     "water_visible": true,
     "reference_object": "passenger car or small SUV tire, top of tire",
-    "fraction_low": 0.7,
-    "fraction_high": 0.95,
-    "depth_m_low": 0.42,
-    "depth_m_high": 0.68,
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.48,
+    "depth_m_high": 0.86,
     "obstacles": [],
     "confidence": "medium",
-    "reasoning": "Flood water covers the entire street surface. The waterline on the detected car reaches up to approximately the top of the tires.",
+    "reasoning": "The street is completely covered in floodwater. The waterline reaches the tires of the distant car, aligning with the top of the tire reference point.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "passenger car or small SUV tire, top of tire",
+    "fraction_low": 0.9,
+    "fraction_high": 1.1,
+    "depth_m_low": 0.54,
+    "depth_m_high": 0.79,
+    "obstacles": [],
+    "confidence": "medium",
+    "reasoning": "The street is completely covered in floodwater. The waterline appears to reach the top of the tires on the vehicle in the distance.",
     "status": "ai_proposed",
     "error": null
    }
   ],
+  "agreeing": [
+   2,
+   3
+  ],
+  "note": "2 of 3 reads agree; read 1: 0.24-0.43 m",
   "detector": {
    "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
    "objects": [
@@ -109,8 +797,8 @@ const recordedRuns = [
   },
   "boxes": "demo/piney-point-2017-08-27-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
-  "analyzed_at": "2026-11-21T21:03:11+00:00",
-  "elapsed_s": 97.0
+  "analyzed_at": "2026-11-21T21:36:49+00:00",
+  "elapsed_s": 26.3
  },
  {
   "file": "barker-reservoir-2017-08-29.jpg",
@@ -122,26 +810,39 @@ const recordedRuns = [
   "url": "https://www.usgs.gov/media/images/servicing-a-streamgage-barker-reservoir-following-hurricane-harvey",
   "water_visible": true,
   "reference_object": "standing adult, middle of kneecap",
-  "fraction_low": null,
-  "fraction_high": null,
-  "depth_m_low": null,
-  "depth_m_high": null,
+  "fraction_low": 0.8,
+  "fraction_high": 1.4,
+  "depth_m_low": 0.33,
+  "depth_m_high": 0.76,
   "obstacles": [],
   "confidence": "medium",
-  "reasoning": "Flood water covers the street. The water level is above the person's knees, exceeding the height of the available reference points in the table.",
-  "status": "needs_review",
-  "error": "3 reads disagree: water, no depth, 0.33-0.54 m, water, no depth",
+  "reasoning": "Flood water covers the street. The waterline is visible on the standing adult's legs, appearing to be at or slightly above the kneecap level.",
+  "status": "ai_proposed",
+  "error": null,
   "readings": [
    {
     "water_visible": true,
-    "reference_object": null,
-    "fraction_low": null,
-    "fraction_high": null,
-    "depth_m_low": null,
-    "depth_m_high": null,
+    "reference_object": "standing adult, middle of kneecap",
+    "fraction_low": 1.0,
+    "fraction_high": 1.4,
+    "depth_m_low": 0.41,
+    "depth_m_high": 0.76,
     "obstacles": [],
-    "confidence": "high",
-    "reasoning": "Flood water covers the street. The water level is above the person's knees, exceeding the height of the available reference points in the table.",
+    "confidence": "medium",
+    "reasoning": "Flood water covers the street. The waterline is visible on the standing adult's legs, appearing to be at or slightly above the kneecap level.",
+    "status": "ai_proposed",
+    "error": null
+   },
+   {
+    "water_visible": true,
+    "reference_object": "standing adult, middle of kneecap",
+    "fraction_low": 0.9,
+    "fraction_high": 1.3,
+    "depth_m_low": 0.37,
+    "depth_m_high": 0.7,
+    "obstacles": [],
+    "confidence": "medium",
+    "reasoning": "Flood water is visible surrounding a person standing on a walkway. The waterline appears to be at or slightly above the middle of the kneecap.",
     "status": "ai_proposed",
     "error": null
    },
@@ -149,29 +850,22 @@ const recordedRuns = [
     "water_visible": true,
     "reference_object": "standing adult, middle of kneecap",
     "fraction_low": 0.8,
-    "fraction_high": 1.0,
+    "fraction_high": 1.2,
     "depth_m_low": 0.33,
-    "depth_m_high": 0.54,
+    "depth_m_high": 0.65,
     "obstacles": [],
     "confidence": "medium",
-    "reasoning": "Flood water covers the street surface. The waterline on the standing person is near the kneecap level.",
-    "status": "ai_proposed",
-    "error": null
-   },
-   {
-    "water_visible": true,
-    "reference_object": null,
-    "fraction_low": null,
-    "fraction_high": null,
-    "depth_m_low": null,
-    "depth_m_high": null,
-    "obstacles": [],
-    "confidence": "high",
-    "reasoning": "Flood water covers the street. The water level is above the person's knees, reaching mid-thigh. No reference object from the table is touched by the waterline.",
+    "reasoning": "The floodwater covers the street and reaches up to the person's legs, with the waterline appearing to sit at the middle of the kneecap.",
     "status": "ai_proposed",
     "error": null
    }
   ],
+  "agreeing": [
+   1,
+   2,
+   3
+  ],
+  "note": null,
   "detector": {
    "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
    "objects": [
@@ -195,8 +889,8 @@ const recordedRuns = [
   },
   "boxes": "demo/barker-reservoir-2017-08-29-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
-  "analyzed_at": "2026-11-21T21:03:50+00:00",
-  "elapsed_s": 39.3
+  "analyzed_at": "2026-11-21T21:37:23+00:00",
+  "elapsed_s": 34.3
  },
  {
   "file": "huntsville-sign-2017-08-28.jpg",
@@ -212,9 +906,18 @@ const recordedRuns = [
   "fraction_high": null,
   "depth_m_low": null,
   "depth_m_high": null,
-  "obstacles": [],
+  "obstacles": [
+   {
+    "type": "other",
+    "note": "yellow diamond road sign partially submerged"
+   },
+   {
+    "type": "other",
+    "note": "submerged road sign"
+   }
+  ],
   "confidence": "high",
-  "reasoning": "The street is completely submerged under brown floodwater. A yellow sign is visible in the distance, but no reference objects from the table such as vehicles, curbs, or people are present to measure the waterline against.",
+  "reasoning": "The street is completely covered by floodwater extending to the tree line. A yellow sign is partially submerged, but no reference objects from the table (curbs, tires, people) are visible to measure the water depth against.",
   "status": "ai_proposed",
   "error": null,
   "readings": [
@@ -225,9 +928,14 @@ const recordedRuns = [
     "fraction_high": null,
     "depth_m_low": null,
     "depth_m_high": null,
-    "obstacles": [],
+    "obstacles": [
+     {
+      "type": "other",
+      "note": "yellow diamond road sign partially submerged"
+     }
+    ],
     "confidence": "high",
-    "reasoning": "The street is completely submerged under brown floodwater. A yellow sign is visible in the distance, but no reference objects from the table such as vehicles, curbs, or people are present to measure the waterline against.",
+    "reasoning": "The street is completely covered by floodwater extending to the tree line. A yellow sign is partially submerged, but no reference objects from the table (curbs, tires, people) are visible to measure the water depth against.",
     "status": "ai_proposed",
     "error": null
    },
@@ -240,7 +948,7 @@ const recordedRuns = [
     "depth_m_high": null,
     "obstacles": [],
     "confidence": "high",
-    "reasoning": "Flood water covers the street surface. No reference objects from the table such as tires, curbs, or adults are visible in the frame.",
+    "reasoning": "The street is completely covered by flood water. A yellow sign is partially submerged, but no reference objects from the table such as curbs, tires, or people are visible to measure the water depth.",
     "status": "ai_proposed",
     "error": null
    },
@@ -251,13 +959,24 @@ const recordedRuns = [
     "fraction_high": null,
     "depth_m_low": null,
     "depth_m_high": null,
-    "obstacles": [],
+    "obstacles": [
+     {
+      "type": "other",
+      "note": "submerged road sign"
+     }
+    ],
     "confidence": "high",
-    "reasoning": "Flood water covers the entire street surface. No reference objects from the table, such as tires, curbs, or people, are visible or touched by the waterline to estimate depth.",
+    "reasoning": "Flood water covers the entire street surface. A yellow road sign is partially submerged, but no reference objects from the table (tires, curbs, or people) are visible to measure the waterline against.",
     "status": "ai_proposed",
     "error": null
    }
   ],
+  "agreeing": [
+   1,
+   2,
+   3
+  ],
+  "note": null,
   "detector": {
    "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
    "objects": [],
@@ -265,8 +984,8 @@ const recordedRuns = [
   },
   "boxes": "demo/huntsville-sign-2017-08-28-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
-  "analyzed_at": "2026-11-21T21:04:06+00:00",
-  "elapsed_s": 15.7
+  "analyzed_at": "2026-11-21T21:37:36+00:00",
+  "elapsed_s": 13.4
  },
  {
   "file": "houston-aerial-2017-08.jpg",
@@ -277,7 +996,7 @@ const recordedRuns = [
   "credit": "USGS \u00b7 public domain",
   "url": "https://www.usgs.gov/media/images/houston-harvey-flood",
   "water_visible": true,
-  "reference_object": "passenger car or small SUV tire, top of tire",
+  "reference_object": null,
   "fraction_low": null,
   "fraction_high": null,
   "depth_m_low": null,
@@ -285,24 +1004,24 @@ const recordedRuns = [
   "obstacles": [
    {
     "type": "stalled_vehicle",
-    "note": "Multiple cars surrounded by floodwater on streets and driveways"
+    "note": "Cars stranded in flooded streets"
    }
   ],
-  "confidence": "medium",
-  "reasoning": "Flood water covers the street and surrounds vehicle tires. The waterline sits on the tires of the visible cars, roughly one-third to halfway up the tire height.",
-  "status": "needs_review",
-  "error": "3 reads disagree: 0.18-0.36 m, water, no depth, 0.48-0.72 m",
+  "confidence": "low",
+  "reasoning": "Brown floodwater covers the residential streets and yards. The aerial view does not show a clear waterline on a reference object like a tire or curb to estimate depth.",
+  "status": "ai_proposed",
+  "error": null,
   "readings": [
    {
     "water_visible": true,
     "reference_object": "passenger car or small SUV tire, top of tire",
-    "fraction_low": 0.3,
-    "fraction_high": 0.5,
-    "depth_m_low": 0.18,
-    "depth_m_high": 0.36,
+    "fraction_low": 0.8,
+    "fraction_high": 1.2,
+    "depth_m_low": 0.48,
+    "depth_m_high": 0.86,
     "obstacles": [],
     "confidence": "medium",
-    "reasoning": "Flood water covers the street and surrounds vehicle tires. The waterline sits on the tires of the visible cars, roughly one-third to halfway up the tire height.",
+    "reasoning": "Aerial view shows extensive flooding covering streets and driveways. The waterline appears to reach approximately the top of the tires of the parked vehicles.",
     "status": "ai_proposed",
     "error": null
    },
@@ -316,28 +1035,33 @@ const recordedRuns = [
     "obstacles": [
      {
       "type": "stalled_vehicle",
-      "note": "Multiple cars surrounded by floodwater on streets and driveways"
+      "note": "Cars stranded in flooded streets"
      }
     ],
-    "confidence": "medium",
-    "reasoning": "Floodwater covers the residential street, submerging curbs and reaching the tires of parked cars. The waterline appears to be above the reference points listed in the table, such as the curb and wheel hub.",
+    "confidence": "high",
+    "reasoning": "Brown floodwater covers the residential streets and yards. The aerial view does not show a clear waterline on a reference object like a tire or curb to estimate depth.",
     "status": "ai_proposed",
     "error": null
    },
    {
     "water_visible": true,
-    "reference_object": "passenger car or small SUV tire, top of tire",
-    "fraction_low": 0.8,
-    "fraction_high": 1.0,
-    "depth_m_low": 0.48,
-    "depth_m_high": 0.72,
+    "reference_object": null,
+    "fraction_low": null,
+    "fraction_high": null,
+    "depth_m_low": null,
+    "depth_m_high": null,
     "obstacles": [],
-    "confidence": "high",
-    "reasoning": "Flood water covers the streets and driveways in the aerial view. The waterline reaches the top of the tires on the parked passenger cars visible in the driveways.",
+    "confidence": "low",
+    "reasoning": "Flood water is clearly visible covering the streets and yards in this aerial view. The provided detector objects do not reliably show a waterline on a tire, curb, or hub suitable for measurement, as some boxes appear to target structures rather than vehicles.",
     "status": "ai_proposed",
     "error": null
    }
   ],
+  "agreeing": [
+   2,
+   3
+  ],
+  "note": "2 of 3 reads agree; read 1: 0.48-0.86 m",
   "detector": {
    "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
    "objects": [
@@ -415,8 +1139,8 @@ const recordedRuns = [
   },
   "boxes": "demo/houston-aerial-2017-08-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
-  "analyzed_at": "2026-11-21T21:05:48+00:00",
-  "elapsed_s": 102.6
+  "analyzed_at": "2026-11-21T21:38:27+00:00",
+  "elapsed_s": 51.1
  },
  {
   "file": "refs/22840.jpg",
@@ -426,28 +1150,28 @@ const recordedRuns = [
   "lon": -95.442757,
   "credit": "Mapillary \u00b7 CC BY-SA 4.0",
   "url": "https://www.mapillary.com/app/?pKey=303316301368352",
-  "water_visible": true,
+  "water_visible": false,
   "reference_object": null,
   "fraction_low": null,
   "fraction_high": null,
   "depth_m_low": null,
   "depth_m_high": null,
   "obstacles": [],
-  "confidence": "low",
-  "reasoning": "The street surface appears wet and reflective, indicating water presence, but the waterline does not clearly touch the detected car or a visible curb top to establish a depth fraction.",
-  "status": "needs_review",
-  "error": "3 reads disagree: water, no depth, no water, no water",
+  "confidence": "high",
+  "reasoning": "The pavement is wet from rain, but there is no standing flood water visible on the street or driveway. No waterline contacts the car, curb, or any other reference object.",
+  "status": "ai_proposed",
+  "error": null,
   "readings": [
    {
-    "water_visible": true,
+    "water_visible": false,
     "reference_object": null,
     "fraction_low": null,
     "fraction_high": null,
     "depth_m_low": null,
     "depth_m_high": null,
     "obstacles": [],
-    "confidence": "low",
-    "reasoning": "The street surface appears wet and reflective, indicating water presence, but the waterline does not clearly touch the detected car or a visible curb top to establish a depth fraction.",
+    "confidence": "high",
+    "reasoning": "The pavement is wet from rain, but there is no standing flood water visible on the street or driveway. No waterline contacts the car, curb, or any other reference object.",
     "status": "ai_proposed",
     "error": null
    },
@@ -460,7 +1184,7 @@ const recordedRuns = [
     "depth_m_high": null,
     "obstacles": [],
     "confidence": "high",
-    "reasoning": "No standing flood water is visible on the street or driveway. The pavement appears wet from rain, but no waterline touches the car tires, hubs, or curb.",
+    "reasoning": "The street surface appears wet but there is no standing flood water visible. No waterline contacts any reference object such as a tire or curb.",
     "status": "ai_proposed",
     "error": null
    },
@@ -473,11 +1197,17 @@ const recordedRuns = [
     "depth_m_high": null,
     "obstacles": [],
     "confidence": "high",
-    "reasoning": "No standing flood water is visible on the street or driveway; the reference car's tires are fully visible and not touching any waterline.",
+    "reasoning": "No standing water or flood lines are visible on the street or driveway; the car is parked on dry pavement.",
     "status": "ai_proposed",
     "error": null
    }
   ],
+  "agreeing": [
+   1,
+   2,
+   3
+  ],
+  "note": null,
   "detector": {
    "model": "torchvision fasterrcnn_resnet50_fpn_v2 (COCO, pretrained)",
    "objects": [
@@ -501,7 +1231,7 @@ const recordedRuns = [
   },
   "boxes": "demo/22840-boxes.jpg",
   "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
-  "analyzed_at": "2026-11-21T21:06:18+00:00",
-  "elapsed_s": 29.7
+  "analyzed_at": "2026-11-21T21:38:37+00:00",
+  "elapsed_s": 9.7
  }
 ];

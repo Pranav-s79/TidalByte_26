@@ -2,6 +2,7 @@
 import argparse
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from itertools import combinations
 import hashlib
 import json
 import mimetypes
@@ -17,7 +18,8 @@ REF_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "reference_heig
 CONFIDENCE = {"low", "medium", "high"}
 OBSTACLE_TYPES = {"stalled_vehicle", "debris", "downed_tree", "barricade", "other"}
 REVIEWED = {"confirmed", "rejected"}  # a person decided; re-running the reader never replaces these
-READS = 3  # reads of each photo, run at the same time; they must agree or it goes to review (NEMOTRON_VL_READS)
+READS = 3  # reads of each photo, run at the same time; a majority must agree or it goes to review (NEMOTRON_VL_READS)
+MAX_FRACTION = 1.5  # water a little above a reference point still reads against it; well above needs a taller row
 
 PROMPT = """You inspect one street photo for flood water. Reply with ONE JSON object and nothing else:
 {{"water_visible": true|false,
@@ -33,8 +35,8 @@ Rules:
   that row's height: 0 = ground, 1 = water exactly at the row's point, 0.5 = halfway from the ground up to it.
   Water a third of the way up to the top of a tire is about 0.3-0.4. Code turns the fraction into a depth, so do
   not give a depth yourself.
-- If the waterline touches no object in the table, or is above every point you can see, set reference_object,
-  fraction_low and fraction_high to null.
+- If the water is a little above the row's point, the fraction may go up to 1.5. If the waterline touches no object
+  in the table, or is well above every point you can see, set reference_object, fraction_low and fraction_high to null.
 - Give a range, never a single number. Do not guess the location. List only obstacles that block a road.
 - Never write out license plates or describe people's faces."""
 
@@ -83,7 +85,7 @@ def parse_reading(raw, heights=None):
             raise ValueError("fraction range has only one end")
         if lo is not None:
             lo, hi = float(lo), float(hi)
-            if not 0 <= lo <= hi <= 1:
+            if not 0 <= lo <= hi <= MAX_FRACTION:
                 raise ValueError(f"bad fraction range {lo}..{hi}")
         if not isinstance(d.get("water_visible"), bool):
             raise ValueError("water_visible is not true/false")
@@ -109,38 +111,59 @@ def _span(r):
     return "water, no depth" if r["water_visible"] else "no water"
 
 
+def _agree(reads):
+    """One story: the same on water, and either no depth in any read or depth ranges that share a value."""
+    lows, highs = [r["depth_m_low"] for r in reads], [r["depth_m_high"] for r in reads]
+    if len({r["water_visible"] for r in reads}) > 1:
+        return False
+    return all(v is None for v in lows) or (None not in lows and max(lows) <= min(highs))
+
+
 def combine(reads):
     """Several reads of one photo -> one reading, with every read kept under "readings".
 
-    They agree when every read came back clean, all say the same about water, and either none has a depth or all
-    do and their ranges share at least one depth. The depth is then the envelope (lowest low to highest high).
-    Otherwise the photo goes to review with no depth: a lucky read never passes as a measurement.
+    Reads that failed or came back unreadable don't vote. The answer is the one largest group of the rest that
+    agree (see _agree), if it has at least 2 reads and more than half of the voters; its depth is the group's
+    envelope (lowest low to highest high). Reads outside the group are named in "note"; "agreeing" lists the
+    group's read numbers. No such group, or two groups of the same size, or any read against an object the
+    detector didn't find: needs_review with no depth, so a lucky read never passes as a measurement.
     """
     if len(reads) == 1:
         return reads[0]
-    first = reads[0]
     if all((r["error"] or "").startswith("model call failed") for r in reads):
-        return {**first, "readings": reads}
-    refs = list(dict.fromkeys(r["reference_object"] for r in reads if r["reference_object"]))
-    out = {**first, "readings": reads, "reference_object": " / ".join(refs) or None,
-           "confidence": min((r["confidence"] for r in reads), key=["low", "medium", "high"].index),
-           "obstacles": [dict(t) for t in dict.fromkeys(tuple(o.items()) for r in reads for o in r["obstacles"])]}
-    lows, highs = [r["depth_m_low"] for r in reads], [r["depth_m_high"] for r in reads]
-    problems = [r["error"] for r in reads if r["status"] != "ai_proposed"]
-    if problems:
-        why = f"{len(problems)} of {len(reads)} reads went to review: " + "; ".join(dict.fromkeys(problems))
-    elif (len({r["water_visible"] for r in reads}) > 1 or (None in lows and any(v is not None for v in lows))
-          or (None not in lows and max(lows) > min(highs))):
-        why = f"{len(reads)} reads disagree: " + ", ".join(_span(r) for r in reads)
-    elif None in lows:
+        return {**reads[0], "readings": reads}
+    flagged = [r["error"] for r in reads if "PyTorch detector found no" in (r["error"] or "")]
+    voters = [i for i, r in enumerate(reads) if r["status"] == "ai_proposed"]
+    group = None
+    for size in range(len(voters), 1, -1):
+        if flagged or size * 2 <= len(voters):
+            break
+        hits = [g for g in combinations(voters, size) if _agree([reads[i] for i in g])]
+        if hits:
+            group = hits[0] if len(hits) == 1 else None  # two equal groups that disagree: no answer
+            break
+    obstacles = [dict(t) for t in dict.fromkeys(tuple(o.items()) for r in reads for o in r["obstacles"])]
+    if group is None:
+        why = (f"{len(flagged)} of {len(reads)} reads went to review: " + "; ".join(dict.fromkeys(flagged)) if flagged
+               else f"{len(reads)} reads disagree: " + ", ".join(_span(r) for r in reads))
+        return {**reads[0], "readings": reads, "agreeing": [], "note": None, "obstacles": obstacles,
+                "status": "needs_review", "error": why, "confidence": "low",
+                "depth_m_low": None, "depth_m_high": None, "fraction_low": None, "fraction_high": None}
+    g = [reads[i] for i in group]
+    refs = list(dict.fromkeys(r["reference_object"] for r in g if r["reference_object"]))
+    others = [i for i in range(len(reads)) if i not in group]
+    note = (f"{len(g)} of {len(reads)} reads agree; " + "; ".join(
+        f"read {i + 1}: " + (_span(reads[i]) if reads[i]["status"] == "ai_proposed" else reads[i]["error"])
+        for i in others)) if others else None
+    out = {**g[0], "readings": reads, "agreeing": [i + 1 for i in group], "note": note, "obstacles": obstacles,
+           "reference_object": " / ".join(refs) or None,
+           "confidence": min((r["confidence"] for r in g), key=["low", "medium", "high"].index)}
+    if g[0]["depth_m_low"] is None:
         return out
-    else:
-        same_ref = len(refs) == 1
-        return {**out, "depth_m_low": min(lows), "depth_m_high": max(highs),
-                "fraction_low": min(r["fraction_low"] for r in reads) if same_ref else None,
-                "fraction_high": max(r["fraction_high"] for r in reads) if same_ref else None}
-    return {**out, "status": "needs_review", "error": why,
-            "depth_m_low": None, "depth_m_high": None, "fraction_low": None, "fraction_high": None}
+    same_ref = len(refs) == 1
+    return {**out, "depth_m_low": min(r["depth_m_low"] for r in g), "depth_m_high": max(r["depth_m_high"] for r in g),
+            "fraction_low": min(r["fraction_low"] for r in g) if same_ref else None,
+            "fraction_high": max(r["fraction_high"] for r in g) if same_ref else None}
 
 
 def _box(box):

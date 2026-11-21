@@ -27,6 +27,18 @@ DEMO = WEB / "photos" / "demo"
 # Photos the walkthrough replays. lat/lon only where a source gives them (Barker: the original file's EXIF GPS);
 # None means the source states none, and that photo is never placed on a map.
 DEMO_PHOTOS = [
+    {"file": "houston-lot-2017-08-27-a.jpg", "title": "Cars in a flooded parking lot", "taken": "Aug 27, 2017, 08:09 (camera clock)",
+     "lat": None, "lon": None, "credit": "R. Crap Mariner · CC BY 2.0 · resized",
+     "url": "https://commons.wikimedia.org/wiki/File:Hurricane-Tropical_Storm_Harvey_in_Houston_-_August_27_2017_AM_(36032743313).jpg"},
+    {"file": "houston-lot-2017-08-27-b.jpg", "title": "Same lot, same minute, another angle", "taken": "Aug 27, 2017, 08:09 (camera clock)",
+     "lat": None, "lon": None, "credit": "R. Crap Mariner · CC BY 2.0 · resized",
+     "url": "https://commons.wikimedia.org/wiki/File:Hurricane-Tropical_Storm_Harvey_in_Houston_-_August_27_2017_AM_(36702214741).jpg"},
+    {"file": "houston-fence-2017-08-27.jpg", "title": "Cars behind a fence", "taken": "Aug 27, 2017, 08:11 (camera clock)",
+     "lat": None, "lon": None, "credit": "R. Crap Mariner · CC BY 2.0 · resized",
+     "url": "https://commons.wikimedia.org/wiki/File:Hurricane-Tropical_Storm_Harvey_in_Houston_-_August_27_2017_AM_(36032737983).jpg"},
+    {"file": "ike-cars-2008-09-13.jpg", "title": "Driving through floodwater (Hurricane Ike, 2008)", "taken": "Sep 13, 2008",
+     "lat": None, "lon": None, "credit": "FEMA, Jocelyn Augustino · public domain",
+     "url": "https://commons.wikimedia.org/wiki/File:FEMA_-_38450_-_Cars_going_through_flood_water_in_Texas.jpg"},
     {"file": "piney-point-2017-08-27.jpg", "title": "Buffalo Bayou at Piney Point", "taken": "Aug 27, 2017, 10:45 CDT",
      "lat": 29.749967, "lon": -95.523117, "credit": "USGS · public domain",
      "url": "https://www.usgs.gov/media/images/hurricane-harvey-flooding-buffalo-bayou-piney-point"},

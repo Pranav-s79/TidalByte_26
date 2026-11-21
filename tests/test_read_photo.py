@@ -224,8 +224,10 @@ def test_reference_not_in_the_table_needs_review():
     assert r["status"] == "needs_review" and r["depth_m_low"] is None and "not in the height table" in r["error"]
 
 
-def test_fraction_above_one_needs_review():
-    assert parse_reading(VALID.replace("0.75,", "1.4,"))["status"] == "needs_review"
+def test_a_little_above_the_point_is_kept_but_far_above_needs_review():
+    r = parse_reading(VALID.replace("0.75,", "1.2,"))
+    assert r["status"] == "ai_proposed" and r["depth_m_high"] == 0.86  # 1.2 x 0.72
+    assert parse_reading(VALID.replace("0.75,", "1.6,"))["status"] == "needs_review"
 
 
 def test_camera_table_is_used_for_the_depth():
@@ -252,20 +254,42 @@ def test_agreeing_reads_give_the_envelope(tmp_path):
     assert (o["depth_m_low"], o["depth_m_high"]) == (0.18, 0.36) and (o["fraction_low"], o["fraction_high"]) == (0.3, 0.5)
 
 
-def test_reads_whose_ranges_do_not_meet_go_to_review(tmp_path):
+def test_two_of_three_agree_and_the_odd_read_is_named(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
-    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(frac(0.3, 0.4), frac(0.3, 0.4), frac(0.8, 1)))
+    seq = iter([frac(0.3, 0.4), frac(0.35, 0.5), frac(0.8, 1)])
+    o = read_photo(str(p), 29.68, -95.44, "t", client=lambda m: next(seq))
+    odd = next(i for i, r in enumerate(o["readings"]) if r["depth_m_low"] == 0.48) + 1
+    assert o["status"] == "ai_proposed" and (o["depth_m_low"], o["depth_m_high"]) == (0.18, 0.36)
+    assert odd not in o["agreeing"] and len(o["agreeing"]) == 2 and f"read {odd}: 0.48-0.72 m" in o["note"]
+
+
+def test_no_majority_goes_to_review(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(frac(0.1, 0.2), frac(0.4, 0.5), frac(0.8, 1)))
     assert o["status"] == "needs_review" and o["depth_m_low"] is None and "disagree" in o["error"]
-    assert sorted(r["depth_m_low"] for r in o["readings"]) == [0.18, 0.18, 0.48]  # every read kept for the reviewer
+    assert sorted(r["depth_m_low"] for r in o["readings"]) == [0.06, 0.24, 0.48]  # every read kept for the reviewer
 
 
-def test_depth_in_some_reads_but_not_others_goes_to_review(tmp_path):
+def test_two_pairs_that_each_agree_but_not_all_three_go_to_review(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")  # 0.18-0.29, 0.24-0.43, 0.42-0.65: 1&2 and 2&3 meet, 1&3 don't
+    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(frac(0.3, 0.4), frac(0.4, 0.6), frac(0.7, 0.9)))
+    assert o["status"] == "needs_review" and "disagree" in o["error"]
+
+
+def test_depth_in_two_reads_beats_no_depth_in_one(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
     o = read_photo(str(p), 29.68, -95.44, "t", client=replies(VALID, VALID, VALID.replace('"' + TIRE + '"', "null")))
-    assert o["status"] == "needs_review" and "disagree" in o["error"] and "water, no depth" in o["error"]
+    assert o["status"] == "ai_proposed" and o["depth_m_low"] == 0.3 and "water, no depth" in o["note"]
 
 
-def test_one_failed_read_sends_the_photo_to_review(tmp_path):
+def test_a_detector_mismatch_in_any_read_sends_the_photo_to_review(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    curb = VALID.replace(TIRE, "street curb, top of curb face")
+    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(VALID, curb, curb), detector=lambda path, crop_dir: ([], []))
+    assert o["status"] == "needs_review" and "found no vehicle" in o["error"]
+
+
+def test_a_failed_read_does_not_vote(tmp_path):
     p = tmp_path / "a.jpg"; p.write_bytes(b"x")
     calls = iter([VALID, VALID, None])
 
@@ -276,7 +300,13 @@ def test_one_failed_read_sends_the_photo_to_review(tmp_path):
         return reply
 
     o = read_photo(str(p), 29.68, -95.44, "t", client=flaky)
-    assert o["status"] == "needs_review" and "1 of 3 reads" in o["error"] and o["depth_m_low"] is None
+    assert o["status"] == "ai_proposed" and o["depth_m_low"] == 0.3 and "503" in o["note"]
+
+
+def test_one_clean_read_is_too_few_to_vote(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "t", client=replies(VALID, "no json", "still no json"))
+    assert o["status"] == "needs_review" and o["depth_m_low"] is None
 
 
 def test_reads_run_at_the_same_time(tmp_path):
