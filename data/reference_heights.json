@@ -1,0 +1,6 @@
+[
+  {"name": "passenger car tire (overall diameter)", "height_m_low": 0.60, "height_m_high": 0.70, "source": "TO VERIFY before demo"},
+  {"name": "street curb", "height_m_low": 0.10, "height_m_high": 0.20, "source": "TO VERIFY before demo"},
+  {"name": "car door handle (above ground)", "height_m_low": 0.80, "height_m_high": 1.05, "source": "TO VERIFY before demo"},
+  {"name": "adult knee (above ground)", "height_m_low": 0.45, "height_m_high": 0.55, "source": "TO VERIFY before demo"}
+]
