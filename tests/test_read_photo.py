@@ -117,3 +117,50 @@ def test_rerun_refreshes_ai_reading_but_never_a_reviewed_one(tmp_path):
     json.dump([{"id": "obs-1", "status": "confirmed"}], open(path, "w"))
     assert not save_observation({"id": "obs-1", "status": "ai_proposed"}, path)
     assert json.load(open(path)) == [{"id": "obs-1", "status": "confirmed"}]
+
+
+# --- PyTorch detector as a second opinion (no torch needed for these tests) ---
+
+CAR = {"label": "car", "score": 0.97, "box": [0.26, 0.38, 0.64, 0.68]}
+
+
+def test_to_objects_keeps_reference_classes_as_fractions():
+    from flood.detect import to_objects
+    categories = ["__background__", "person", "car", "dog"]
+    objs = to_objects([[0, 0, 100, 50], [10, 10, 20, 20], [0, 0, 1, 1]], [2, 3, 1], [0.9, 0.99, 0.3],
+                      categories, width=200, height=100)
+    assert objs == [{"label": "car", "score": 0.9, "box": [0.0, 0.0, 0.5, 0.5]}]  # dog: not a reference; person: low score
+
+
+def test_detector_boxes_go_into_the_prompt():
+    text = rp._messages(b"x", "a.jpg", [CAR])[0]["content"][0]["text"]
+    assert "car (0.97): left 26%, top 38%, right 64%, bottom 68%" in text
+
+
+def test_depth_against_a_vehicle_the_detector_missed_needs_review(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID, detector=lambda path: [])
+    assert o["status"] == "needs_review" and o["depth_m_low"] is None and "found no vehicle" in o["error"]
+
+
+def test_depth_against_a_detected_vehicle_stands(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID, detector=lambda path: [CAR])
+    assert o["status"] == "ai_proposed" and o["depth_m_low"] == 0.35 and o["detector"]["objects"] == [CAR]
+
+
+def test_curb_reading_has_nothing_to_cross_check(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+    curb = VALID.replace('"sedan tire"', '"street curb, top of curb face"')
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: curb, detector=lambda path: [])
+    assert o["status"] == "ai_proposed"
+
+
+def test_detector_failure_still_reads_the_photo(tmp_path):
+    p = tmp_path / "a.jpg"; p.write_bytes(b"x")
+
+    def broken(path):
+        raise OSError("not an image")
+
+    o = read_photo(str(p), 29.68, -95.44, "2017-08-27T09:36:00", client=lambda m: VALID, detector=broken)
+    assert o["status"] == "ai_proposed" and "detector failed" in o["detector"]["error"]

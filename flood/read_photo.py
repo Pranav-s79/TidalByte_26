@@ -83,13 +83,25 @@ def parse_reading(raw):
             "status": "ai_proposed", "error": None}
 
 
-def _messages(photo_bytes, photo_path):
+def _detector_note(objects):
+    """Tell Nemotron what the PyTorch detector boxed, so it reads the waterline against real objects."""
+    if objects is None:
+        return ""
+    if not objects:
+        return "\nA PyTorch object detector found no people, vehicles or signs in this photo."
+    rows = "\n".join(f"  - {o['label']} ({o['score']:.2f}): left {o['box'][0]:.0%}, top {o['box'][1]:.0%}, "
+                     f"right {o['box'][2]:.0%}, bottom {o['box'][3]:.0%} of the image" for o in objects)
+    return ("\nA PyTorch object detector boxed these objects. It cannot see water, so judge the waterline "
+            "yourself, and prefer reading it against these objects:\n" + rows)
+
+
+def _messages(photo_bytes, photo_path, objects=None):
     table = "\n".join(f"  - {r['name']}: {r['height_m_low']}-{r['height_m_high']} m"
                       for r in json.load(open(REF_PATH)))
     mime = mimetypes.guess_type(photo_path)[0] or "image/jpeg"
     url = f"data:{mime};base64,{base64.b64encode(photo_bytes).decode()}"
     # ponytail: OpenAI-style image_url content; check against the Nemotron VL docs if the endpoint rejects it
-    return [{"role": "user", "content": [{"type": "text", "text": PROMPT.format(table=table)},
+    return [{"role": "user", "content": [{"type": "text", "text": PROMPT.format(table=table) + _detector_note(objects)},
                                          {"type": "image_url", "image_url": {"url": url}}]}]
 
 
@@ -122,16 +134,66 @@ def post_chat(messages):
     return content
 
 
-def read_photo(photo_path, lat, lon, taken_at, client=post_chat):
+# Words in a reference object's name -> detector classes that must be in the photo for that reading to stand.
+NEEDS = [
+    (("tire", "wheel", "hub", "car", "suv", "sedan", "vehicle", "truck", "bumper", "door"),
+     {"car", "truck", "bus", "motorcycle"}, "vehicle"),
+    (("knee", "adult", "person", "waist", "ankle"), {"person"}, "person"),
+    (("stop sign",), {"stop sign"}, "stop sign"),
+    (("hydrant",), {"fire hydrant"}, "fire hydrant"),
+]
+
+
+def cross_check(reading, objects):
+    """Second opinion: a depth read against a vehicle, person or sign the detector didn't find goes to review.
+
+    When the two models disagree we keep the disagreement visible instead of passing a depth through.
+    """
+    ref = (reading.get("reference_object") or "").lower()
+    if objects is None or reading["depth_m_low"] is None or not ref:
+        return reading
+    found = {o["label"] for o in objects}
+    for words, classes, what in NEEDS:
+        if any(w in ref for w in words):
+            if found & classes:
+                return reading
+            return {**reading, "status": "needs_review", "depth_m_low": None, "depth_m_high": None,
+                    "error": f"Nemotron read {reading['depth_m_low']}-{reading['depth_m_high']} m against "
+                             f"'{reading['reference_object']}', but the PyTorch detector found no {what}"}
+    return reading  # e.g. a curb: the detector has no class for it, so there is nothing to check
+
+
+def read_photo(photo_path, lat, lon, taken_at, client=post_chat, detector=None):
     if lat is None or lon is None:
         raise ValueError("photo has no location: rejected (never guess one)")
     data = open(photo_path, "rb").read()
+    objects, det = None, None
+    if detector is not None:
+        name = getattr(detector, "model_name", getattr(detector, "__name__", "detector"))
+        try:
+            objects = detector(photo_path)
+            det = {"model": name, "objects": objects}
+        except Exception as e:  # the detector is a second opinion; Nemotron still reads the photo without it
+            det = {"model": name, "objects": None, "error": f"detector failed: {e}"}
     try:
-        reading = parse_reading(client(_messages(data, photo_path)))
+        reading = cross_check(parse_reading(client(_messages(data, photo_path, objects))), objects)
     except Exception as e:  # network/auth/endpoint failure must not crash the pipeline
         reading = _empty(f"model call failed: {e}")
     return {"id": "obs-" + hashlib.sha1(data).hexdigest()[:10], "lat": lat, "lon": lon, "taken_at": taken_at,
-            "photo": photo_path, **reading, "model": os.environ.get("NEMOTRON_VL_MODEL", DEFAULT_MODEL)}
+            "photo": photo_path, **reading, "detector": det,
+            "model": os.environ.get("NEMOTRON_VL_MODEL", DEFAULT_MODEL)}
+
+
+def _default_detector():
+    try:
+        import torch  # noqa: F401  (check once here, not per photo)
+
+        from flood.detect import detect
+        return detect
+    except ImportError:
+        print("note: PyTorch is not installed (pip install -r requirements-detector.txt); "
+              "reading without the detector", file=sys.stderr)
+        return None
 
 
 def save_observation(obs, path):
@@ -158,8 +220,9 @@ def main():
     p.add_argument("--taken-at", required=True)
     p.add_argument("--out", default="data/observations.json")
     p.add_argument("--dry-run", action="store_true", help="print only; use for photos whose location you don't know")
+    p.add_argument("--no-detector", action="store_true", help="skip the PyTorch object detector")
     a = p.parse_args()
-    obs = read_photo(a.photo, a.lat, a.lon, a.taken_at)
+    obs = read_photo(a.photo, a.lat, a.lon, a.taken_at, detector=None if a.no_detector else _default_detector())
     print(json.dumps(obs, indent=2))
     if a.dry_run:
         return
