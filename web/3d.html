@@ -3,52 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flood Scene Realistic</title>
+  <title>TidalByte · Houston 3D flood replay</title>
+  <link rel="icon" href="data:,">
   <script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/';</script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Widgets/widgets.css">
   <link rel="stylesheet" href="style.css">
-  <style>
-    #cesium { position: absolute; inset: 0; }
-    #banner a { color: #93c5fd; }
-    .ln.edge { border-top-style: dashed; border-color: #f9fafb; }
-    .sw.water { background: linear-gradient(135deg, #1e3a5f, #3b82c4 60%, #9cc9f0); }
-    .sw.possible-3d { background: rgba(147, 197, 253, .55); }
-    .gauge { display: inline-block; width: 6px; height: 16px; background: linear-gradient(#facc15 50%, #111827 50%) 0 0 / 6px 6px; flex: none; margin: 0 8px 0 4px; }
-    #status { color: var(--muted); font-size: 12px; margin-top: 6px; }
-  </style>
+  <link rel="stylesheet" href="scene3d.css">
 </head>
-<body>
-  <div id="cesium" role="region" aria-label="Realistic 3D view of estimated Harvey flooding in Meyerland"></div>
-
-  <header id="banner">
-    <span class="replay">REPLAY · Hurricane Harvey, Aug 2017</span>
-    <span id="label">Loading…</span>
-    <a href="index.html">2D map</a>
+<body class="city">
+  <div id="cesium" role="region" aria-label="Interactive photorealistic 3D map of Houston"></div>
+  <header class="map-header">
+    <div class="title-line"><span class="brand">TidalByte</span><span class="event">Harvey 2017 replay</span></div>
+    <h1 id="place">Meyerland</h1>
+    <nav aria-label="3D viewpoints">
+      <a id="meyerland" href="#meyerland" aria-current="location">Flood extent</a>
+      <a id="piney-point" href="#piney-point">Piney Point photo</a>
+    </nav>
   </header>
-
-  <aside id="legend" aria-label="Legend">
-    <h2>Water (estimated)</h2>
-    <div class="row"><i class="sw water"></i><span>Likely flooded: water drawn at its estimated peak level</span></div>
-    <div class="row"><i class="sw possible-3d"></i><span>Possibly flooded</span></div>
-    <div class="row"><i class="ln edge"></i><span>Edge of evidence. Beyond it: Unknown: no data</span></div>
-    <h2>Roads</h2>
-    <div class="row"><i class="ln likely"></i><span>Likely flooded</span></div>
-    <div class="row"><i class="ln bridge"></i><span>Bridge: depth not estimated</span></div>
-    <h2>Evidence</h2>
-    <p class="note"><a href="photos/index.html">View USGS Harvey field photos</a></p>
-    <div class="row"><i class="gauge"></i><span>USGS measured (surveyed after the flood). Bar height = water depth</span></div>
-    <p class="note">3D city: Google Photorealistic 3D Tiles, showing Houston <b>today</b>, not 2017. Click a gauge for details. Left-drag to pan, right-drag to zoom, Ctrl+drag to tilt.</p>
-    <p id="status">Aligning 3D city to lidar…</p>
-    <p class="note">Camera locations from <a href="https://traffic.houstontranstar.org/cctv/transtar/">Houston TranStar</a>. This replay uses USGS high-water marks.</p>
+  <a class="street-link" href="map.html">Street map ↗</a>
+  <aside id="legend" aria-label="Flood layer legend">
+    <details open>
+      <summary>Flood layers</summary>
+      <p id="label">Loading the Harvey replay…</p>
+      <div class="row"><i class="sw water"></i><span>Likely flooded</span></div>
+      <div class="row"><i class="sw possible-3d"></i><span>Possibly flooded</span></div>
+      <div class="row"><i class="ln edge"></i><span>Evidence edge · beyond it is unknown</span></div>
+      <div class="row"><i class="ln likely"></i><span>Road with estimated flooding</span></div>
+      <div class="row"><i class="ln bridge"></i><span>Bridge · depth unknown</span></div>
+      <div class="row"><i class="gauge"></i><span>Surveyed high-water mark</span></div>
+      <p class="note">Click a mark or road for details. Ctrl + drag to tilt.</p>
+    </details>
   </aside>
-
+  <div class="scene-status" role="status" id="status">Loading Houston’s 3D city…</div>
   <aside id="panel" hidden aria-live="polite">
     <button id="close" type="button" aria-label="Close details">×</button>
     <div id="panel-body"></div>
   </aside>
-
+  <aside id="photo-panel" hidden aria-label="Piney Point photo and live analysis">
+    <div class="photo-heading"><div><small>USGS field photo</small><h2>Piney Point</h2></div>
+      <button id="close-photo" type="button" aria-label="Close photo panel">×</button></div>
+    <a href="photos/piney-point-2017-08-27.jpg"><img class="field-photo" src="photos/piney-point-2017-08-27.jpg" width="750" height="1000" alt="A police vehicle on a flooded road at Piney Point"></a>
+    <p class="photo-time">August 27, 2017 · 10:45 a.m. CDT · pin is the photographer’s GPS fix (±30 m)</p>
+    <p class="photo-note">Outside the Meyerland replay, so this reading is not added to the flood layer. It still needs a person’s review.</p>
+    <section class="reading" aria-labelledby="reading-title"></section>
+    <a class="archive-link" href="photos/index.html">Photo archive and source ↗</a>
+  </aside>
   <script src="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Cesium.js"></script>
   <script src="config.local.js"></script>
+  <script src="photos/saved-reading.js"></script>
+  <script src="photos/reading.js"></script>
   <script src="scene3d.js"></script>
 </body>
 </html>

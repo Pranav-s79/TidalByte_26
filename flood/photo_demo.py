@@ -86,7 +86,7 @@ def main():
     if not os.getenv("NVIDIA_API_KEY"):
         parser.error("Set NVIDIA_API_KEY or start the server from an interactive terminal.")
     with make_server(args.port) as server:
-        print(f"Photo demo: http://127.0.0.1:{server.server_port}/photos/", flush=True)
+        print(f"3D flood demo: http://127.0.0.1:{server.server_port}/", flush=True)
         server.serve_forever()
 
 

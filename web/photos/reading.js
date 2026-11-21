@@ -1,5 +1,27 @@
 const api = '/api/piney-point/reading';
-const field = (id) => document.getElementById(id);
+const readingCard = document.querySelector('.reading');
+readingCard.innerHTML = `
+<div class="card-head"><h2 id="reading-title">AI photo reading</h2><span id="review" hidden></span></div>
+<p class="model" id="model">NVIDIA Nemotron</p>
+<div class="metrics">
+  <div><h3>Surface water</h3><strong id="water">—</strong></div>
+  <div><h3>Proposed depth</h3><strong id="depth">—</strong></div>
+</div>
+<h3>Visual evidence</h3>
+<p class="assessment" id="reason">Loading the recorded reading…</p>
+<p id="issue" hidden></p>
+<dl class="details">
+  <div><dt>Depth reference</dt><dd id="reference">—</dd></div>
+  <div><dt>Model confidence</dt><dd id="confidence">—</dd></div>
+  <div><dt>Object detector</dt><dd id="detector">—</dd></div>
+</dl>
+<div class="actions">
+  <button type="button" id="analyze" hidden>Run live reading <span aria-hidden="true">↗</span></button>
+  <p id="stamp"></p>
+  <p id="reading-status" role="status"></p>
+</div>
+`;
+const field = (id) => readingCard.querySelector('#' + id);
 const button = field('analyze');
 const localTime = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Chicago'
@@ -43,7 +65,7 @@ async function connect() {
 button.addEventListener('click', async () => {
   button.disabled = true;
   button.textContent = 'Analyzing photo…';
-  field('status').textContent = 'Running the detector and Nemotron on the 2017 photograph…';
+  field('reading-status').textContent = 'Running the detector and Nemotron on the 2017 photograph…';
   try {
     const response = await fetch(api, {method: 'POST'});
     if (!response.headers.get('Content-Type')?.includes('application/json')) {
@@ -52,9 +74,9 @@ button.addEventListener('click', async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'The live request failed. Please retry.');
     showReading(data.reading, 'Live model run');
-    field('status').textContent = 'New reading ready for review.';
+    field('reading-status').textContent = 'New reading ready for review.';
   } catch (err) {
-    field('status').textContent = err instanceof TypeError
+    field('reading-status').textContent = err instanceof TypeError
       ? 'Could not reach the live server. The previous reading is still displayed.' : err.message;
   } finally {
     button.disabled = false;
