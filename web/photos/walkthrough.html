@@ -54,6 +54,13 @@
     .scene .wband { fill: #2b7fa8; fill-opacity: .22; }
     .scene .wline { stroke: #174d63; stroke-width: 1.5; }
     .scene .wlab { fill: #174d63; font-weight: 800; paint-order: stroke; stroke: #fbfcfb; stroke-width: 4px; }
+    .pic { display: block; width: 100%; height: auto; background: #1d2a30; }
+    .pic text { font-family: Inter, -apple-system, sans-serif; font-weight: 650; paint-order: stroke; stroke: #10191d; stroke-linejoin: round; }
+    .pic .tick { stroke: #e8eef0; } .pic .tick.used { stroke: #f59e0b; }
+    .pic .ref { fill: #e8eef0; } .pic .ref.used { fill: #ffc861; font-weight: 800; }
+    .pic .stem { stroke: #f59e0b; } .pic .gnd { stroke: #e8eef0; }
+    .pic .wband { fill: #38bdf8; fill-opacity: .38; stroke: #e0f2fe; }
+    .pic .wlab { fill: #bae6fd; font-weight: 800; }
     .thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin: .4rem 0 .8rem; }
     .thumbs img { border-radius: .4rem; max-height: 9rem; object-fit: cover; }
     .legend { list-style: none; padding: 0; margin: .2rem 0 .8rem; display: flex; flex-wrap: wrap; gap: .35rem; }
@@ -174,11 +181,14 @@
       document.querySelectorAll('.steps button').forEach((b, i) => i === s ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current'));
       const imgs = images(r);
       $('.imgs').className = 'imgs' + (imgs.length > 1 ? ' two' : '');
-      $('.imgs').innerHTML = s === 1 ? scene(r) : imgs.map(([src, alt]) => `<img src="${esc(src)}" alt="${esc(alt)}">`).join('');
+      $('.imgs').innerHTML = s === 1 ? (r.locate ? onPhoto(r) : scene(r)) : imgs.map(([src, alt]) => `<img src="${esc(src)}" alt="${esc(alt)}">`).join('');
       const where = r.lat != null ? `${Math.abs(r.lat).toFixed(5)}° N, ${Math.abs(r.lon).toFixed(5)}° W`
         : 'Location not stated by the source · not placed on the map';
       $('.frame figcaption').innerHTML = s === 1
-        ? '<span>Drawn to scale from the sourced height table. The car, person and building are generic, not the ones in the photo.</span>'
+        ? (r.locate ? `<span>The close-up Nemotron was shown. Orange: sourced heights, placed where Nemotron marked them on this
+            ${r.locate.points && Object.keys(r.locate.points).some((k) => /adult/.test(k)) ? 'leg' : 'wheel'} (one extra recorded call; marks are approximate).
+            Blue: where each read puts the water. ${notDrawn(r)}</span>`
+          : '<span>Drawn to scale from the sourced height table. The car, person and building are generic, not the ones in the photo.</span>')
         : `<span>${esc(r.taken)} · ${where}</span><a href="${esc(r.url)}">${esc(r.credit)} ↗</a>`;
       $('.explain').innerHTML = `<h2>${STEPS[s]}</h2>` + [detector, references, compare, crossCheck, words][s](r);
       $('.stamp').textContent = `Recorded ${new Date(r.analyzed_at).toLocaleString()} · ${r.model.split('/').pop()} · `
@@ -253,6 +263,48 @@
       </svg>`;
     }
 
+    // --- The references drawn on the photo: zoomed on the wheel or leg Nemotron marked in its close-up ---
+    const markY = (r, x) => { const k = Object.keys(r.locate.points).find((n) => n.toLowerCase() === String(x.reference_object || '').toLowerCase()); return k ? r.locate.points[k] : null; };
+    const notDrawn = (r) => reads(r).map((x, i) => x.fraction_low != null && markY(r, x) == null ? `Read ${i + 1} (${esc(x.reference_object)}) is not drawn here.` : '').join(' ');
+
+    function onPhoto(r) {
+      const L = r.locate, [w, h] = L.size, g = L.ground_y, x = L.x;
+      const pts = Object.entries(L.points).map(([name, y]) => [heights.find((t) => t.name === name), y]).filter(([t]) => t);
+      const top = Math.min(...pts.map(([, y]) => y));
+      // Zoom on the marked object; references labelled on its right, reads on its left. Where the close-up ends,
+      // the dark background shows (labels never leave the view).
+      const winH = Math.min(h, Math.max((g - top) * 2.4, h * 0.4));
+      const fs = winH / 16, sw = winH / 220, half = Math.max(fs * 1.2, (g - top) * 0.55);
+      const winW = Math.max(2 * (half + fs * 12.5), winH * 1.5);
+      const x0 = x - winW / 2, y0 = Math.min(Math.max((g + top) / 2 - winH / 2, 0), Math.max(0, h - winH));
+      const [rx, ra] = [x + half + fs * 0.5, 'start'], [wx, wa] = [x - half - fs * 0.5, 'end'];
+      const used = new Set(reads(r).map((v) => String(v.reference_object || '').toLowerCase()));
+      const ticks = pts.map(([t, y]) => {
+        const on = used.has(t.name.toLowerCase()) ? ' used' : '';
+        return `<line x1="${x - half * 0.6}" x2="${x + half * 0.6}" y1="${y}" y2="${y}" class="tick${on}" stroke-width="${sw * 2}"/>
+          <text x="${rx}" y="${y + fs * 0.35}" text-anchor="${ra}" class="ref${on}" font-size="${fs}" stroke-width="${fs / 4}">${esc(placeFor(t.name)?.[1] || t.name)} ${n2(t.height_m_low)}–${n2(t.height_m_high)} m</text>`;
+      }).join('');
+      const wet = reads(r).map((v, i) => [v, i, markY(r, v)]).filter(([v, , y]) => v.fraction_low != null && y != null);
+      const bands = wet.map(([v, , py]) => {
+        const hi = g - v.fraction_high * (g - py), lo = g - v.fraction_low * (g - py);
+        return `<rect x="${x - half}" width="${half * 2}" y="${hi}" height="${Math.max(lo - hi, sw)}" class="wband" stroke-width="${sw}"/>`;
+      }).join('');
+      let last = -1e9;
+      const tags = wet.map(([v, i, py]) => [v, i, g - v.fraction_high * (g - py)]).sort((a, b) => a[2] - b[2]).map(([v, i, y]) => {
+        const ty = Math.max(y + fs * 0.35, last + fs * 1.15); last = ty;
+        return `<text x="${wx}" y="${ty}" text-anchor="${wa}" class="wlab" font-size="${fs}" stroke-width="${fs / 4}">Read ${i + 1}: ${span(v)}</text>`;
+      }).join('');
+      return `<svg class="pic" viewBox="${x0} ${y0} ${winW} ${winH}" role="img"
+        aria-label="Close-up with the reference heights drawn on the ${esc(r.title)} photo and each read's water range">
+        <image href="${esc(L.crop)}" width="${w}" height="${h}"/>
+        ${bands}
+        <line x1="${x}" x2="${x}" y1="${top}" y2="${g}" class="stem" stroke-width="${sw * 2}"/>
+        <line x1="${x - half}" x2="${x + half}" y1="${g}" y2="${g}" class="gnd" stroke-width="${sw * 1.5}" stroke-dasharray="${fs * 0.5} ${fs * 0.35}"/>
+        <text x="${rx}" y="${g + fs * 0.35}" text-anchor="${ra}" class="ref" font-size="${fs * 0.85}" stroke-width="${fs / 4}">ground (estimated)</text>
+        ${ticks}${tags}
+      </svg>`;
+    }
+
     function references(r) {
       const rows = reads(r).map((x, i) => {
         const row = rowFor(x.reference_object);
@@ -271,8 +323,11 @@
       const crops = r.detector?.crops || [];
       const thumbs = crops.length ? `<div class="thumbs">${crops.map((c) => `<img src="${esc(c.src)}" alt="Close-up of the ${esc(c.label)} Nemotron was shown">`).join('')}</div>`
         : '<p class="lede">No close-ups: the detector found no vehicle, person or sign.</p>';
+      const how = r.locate
+        ? 'On the photo: orange is the height table drawn on the real object, blue is where each read puts the water. If blue does not sit on the real waterline, the read is wrong, and that is what the reviewer checks.'
+        : 'In the drawing, orange marks the references the reads used and blue is where each read puts the water.';
       return `<p class="lede">Nemotron picks a reference from the sourced height table and says how far up it the water reaches;
-        code does the multiplication. In the drawing, orange marks the references the reads used and blue is where each read puts the water.</p>
+        code does the multiplication. ${how}</p>
         <b class="lede">Close-ups Nemotron was shown</b>${thumbs}<b class="lede">Height table</b><ul class="legend">${legend}</ul>${rows}`;
     }
 

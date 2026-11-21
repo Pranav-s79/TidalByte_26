@@ -28,3 +28,20 @@ def test_live_reading_requires_local_origin_and_preserves_last_success(monkeypat
         finally:
             server.shutdown()
             thread.join()
+
+
+def test_locate_marks_table_points_on_the_matching_close_up():
+    rows = [{"name": "passenger car or small SUV tire, top of tire"}, {"name": "passenger car or small SUV wheel, center of hub"},
+            {"name": "standing adult, middle of kneecap"}]
+    run = {"readings": [{"reference_object": "passenger car or small SUV tire, top of tire", "reasoning": "water at the hub"}],
+           "detector": {"crops": [{"src": "demo/houston-lot-2017-08-27-a/01-car.jpg", "label": "car"}]}}
+    reply = ('{"x": 400, "ground_y": 185, "points": {"passenger car or small SUV tire, top of tire": 130, '
+             '"passenger car or small SUV wheel, center of hub": 158, "standing adult, middle of kneecap": 100, "made up": 90}}')
+    seen = []
+    m = photo_demo.locate(run, rows, client=lambda msgs: seen.append(msgs) or reply)
+    assert m["crop"].endswith("01-car.jpg") and m["size"] == [562, 239] and m["ground_y"] == 185
+    assert m["points"] == {"passenger car or small SUV tire, top of tire": 130, "passenger car or small SUV wheel, center of hub": 158}
+    assert "water at the hub" in seen[0][0]["content"][0]["text"]  # the reading's words steer it to the same object
+    assert photo_demo.parse_locate('{"x": 1, "ground_y": 50, "points": {"a": 60}}', ["a"], (100, 100)) is None  # below ground
+    run["readings"][0]["reference_object"] = "street curb, top of curb face"
+    assert photo_demo.locate(run, rows, client=lambda msgs: reply) is None  # nothing to mark it on

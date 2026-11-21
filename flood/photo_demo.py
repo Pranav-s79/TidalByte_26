@@ -15,6 +15,8 @@ import sys
 from threading import Lock
 import time
 
+from PIL import Image
+
 from flood import read_photo as rp
 from flood.detect import debug_draw, detect
 from flood.read_photo import read_photo
@@ -70,6 +72,48 @@ def analyze():
             "elapsed_s": round(time.monotonic() - start, 1)}
 
 
+def parse_locate(raw, names, size):
+    """Reply -> {"x", "ground_y", "points": {row name: y}} in close-up pixels, or None. Points must sit above the ground."""
+    d = rp._extract_json(raw) or {}
+    try:
+        x, ground = float(d["x"]), float(d["ground_y"])
+        pts = {n: float(y) for n, y in (d.get("points") or {}).items() if n in names and isinstance(y, (int, float))}
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    pts = {n: y for n, y in pts.items() if 0 <= y < ground}
+    ok = 0 <= x <= size[0] and 0 <= ground <= size[1] * 1.2  # ground may sit a little below the crop's edge
+    return {"x": x, "ground_y": ground, "points": pts} if ok and pts else None
+
+
+def locate(run, rows, client=rp.post_chat):
+    """One extra recorded Nemotron call for the walkthrough drawing: on a close-up it was shown, mark the ground and
+    each table point of the object the reads used (tire top and hub on one wheel; ankle, knee, waist on one leg).
+    Illustration only: it never changes the reading. None when there is nothing to mark or the call fails."""
+    reads = run.get("readings") or [run]
+    refs = [x["reference_object"].lower() for x in reads if x.get("reference_object")]
+    need = next((n for n in rp.NEEDS if refs and any(w in refs[0] for w in n[0])), None)
+    crop = need and next((c for c in run["detector"].get("crops") or [] if c["label"] in need[1]), None)
+    names = [r["name"] for r in rows if need and any(w in r["name"].lower() for w in need[0])]
+    if not crop or not names:
+        return None
+    path = WEB / "photos" / crop["src"]
+    size = Image.open(path).size
+    said = next(x["reasoning"] for x in reads if x.get("reference_object"))
+    text = (f"Close-up ({size[0]}x{size[1]} px, 0,0 = top left) cut from a flood photo. A reading of it said: \"{said}\"\n"
+            f"Mark the {need[2]} that reading describes if you can see it, else the one whose waterline is clearest.\n"
+            'Reply with ONE JSON object: {"x": px, "ground_y": px, "points": {"<name>": y px}}\n'
+            "x = the horizontal middle of the wheel or leg you mark; ground_y = where it meets the ground (estimate it if "
+            "under water); points = the y of each of these, names copied exactly: " + "; ".join(names))
+    try:
+        reply = client([{"role": "user", "content": [{"type": "text", "text": text},
+                                                     rp._image(path.read_bytes(), "image/jpeg")]}])
+    except Exception as e:  # noqa: BLE001 - the drawing is optional; the recording goes on without it
+        print(f"locate failed: {e}", file=sys.stderr)
+        return None
+    marks = parse_locate(reply, names, size)
+    return marks and {"crop": crop["src"], "size": list(size), **marks}
+
+
 def record(photos=DEMO_PHOTOS):
     """Real detector + three Nemotron reads per photo -> boxes, crops and web/photos/demo/recorded.js."""
     DEMO.mkdir(exist_ok=True)
@@ -88,11 +132,12 @@ def record(photos=DEMO_PHOTOS):
             if str(f) not in crops:
                 f.unlink()
         debug_draw(str(path), det.get("objects") or [], str(DEMO / f"{slug}-boxes.jpg"))
-        runs.append({**p, **r, "boxes": rel(DEMO / f"{slug}-boxes.jpg"),
-                     "detector": {**det, "crops": [{"src": rel(c), "label": Path(c).stem[3:].replace("_", " ")} for c in crops]},
-                     "model": os.environ.get("NEMOTRON_VL_MODEL", rp.DEFAULT_MODEL),
-                     "analyzed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                     "elapsed_s": round(time.monotonic() - start, 1)})
+        run = {**p, **r, "boxes": rel(DEMO / f"{slug}-boxes.jpg"),
+               "detector": {**det, "crops": [{"src": rel(c), "label": Path(c).stem[3:].replace("_", " ")} for c in crops]},
+               "model": os.environ.get("NEMOTRON_VL_MODEL", rp.DEFAULT_MODEL),
+               "analyzed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+               "elapsed_s": round(time.monotonic() - start, 1)}
+        runs.append({**run, "locate": locate(run, rp._table())})
         print(f"{slug}: {r['status']}, {rp._span(r)}, {time.monotonic() - start:.0f} s", flush=True)
     (DEMO / "recorded.js").write_text(
         "// Written by python -m flood.photo_demo --record: real PyTorch detector and Nemotron output.\n"
