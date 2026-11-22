@@ -131,47 +131,122 @@ document.getElementById('cam-street').addEventListener('click', () => (state.sel
 document.getElementById('cam-top').addEventListener('click', () => scene.topDown());
 document.getElementById('cam-north').addEventListener('click', () => scene.resetNorth());
 
-// ---------------------------------------------------------------- demo mode
-// Close orbit over the flooded houses → the Linkview Dr high-water mark's evidence → route options.
-// Touching the map, Esc or the Demo button again stops it.
+// ---------------------------------------------------------------- guided demo
+// A short, deterministic tour of the replay UI. It uses checked-in routing output, keeps that output
+// visibly labeled as recorded, and leaves the final choice to the operator. Touching the map, Escape,
+// End or the Demo button again stops it.
 const DEMO_PIN = '22857';
+const DEMO_STEPS = [
+  {
+    title: 'Flood overview', duration: 6000,
+    copy: 'Harvey 2017 replay of estimated peak flooding across Houston.',
+    run: (signal) => {
+      setLayer('water', true); setLayer('roads', false); setLayer('evidence', false);
+      return scene.orbit(-95.4445, 29.6868, { range: 2500, pitch: -32, seconds: 6, turns: 0.08, signal });
+    },
+  },
+  {
+    title: 'Measured evidence', duration: 7000,
+    copy: 'Surveyed USGS high-water marks connect the estimate to field evidence.',
+    run: (signal, pin) => {
+      setLayer('evidence', true);
+      select(pin); ui.setCollapsed('right', false);
+      const [lon, lat] = pin.feature.geometry.coordinates;
+      return scene.orbit(lon, lat, { range: 145, pitch: -20, seconds: 7, turns: 0.14, signal });
+    },
+  },
+  {
+    title: 'Route comparison', duration: 10000,
+    copy: 'Compare recorded options by distance, estimated depth, and data coverage.',
+    run: async (signal) => {
+      select(null); setLayer('evidence', false); setLayer('roads', false);
+      ui.setCollapsed('right', true); ui.setCollapsed('left', false);
+      document.querySelector('#left .panel-body')?.scrollTo({ top: 0, behavior: 'smooth' });
+      const doc = await routing.demoRecorded();
+      await demoWait(1800, signal);
+      for (const option of doc.options || []) {
+        if (signal.aborted) return;
+        routing.highlight(option.id);
+        await demoWait(2800, signal);
+      }
+    },
+  },
+  {
+    title: 'Decision point', duration: 6000,
+    copy: 'The operator reviews the evidence and makes the final route decision.',
+    run: () => routing.highlight('A'),
+  },
+];
+
 let demo = null;
+let demoStage = null;
 const demoBtn = document.getElementById('demo-btn');
+const demoGuide = document.getElementById('demo-guide');
+
+function demoWait(ms, signal) {
+  return new Promise((resolve) => {
+    if (signal?.aborted) { resolve(); return; }
+    const timer = window.setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => { window.clearTimeout(timer); resolve(); }, { once: true });
+  });
+}
+
+function showDemoStep(step, index) {
+  document.getElementById('demo-count').textContent = `${index + 1} / ${DEMO_STEPS.length}`;
+  document.getElementById('demo-progress').style.width = `${((index + 1) / DEMO_STEPS.length) * 100}%`;
+  document.getElementById('demo-title').textContent = step.title;
+  document.getElementById('demo-copy').textContent = step.copy;
+  document.getElementById('demo-next').textContent = index === DEMO_STEPS.length - 1 ? 'Finish' : 'Next';
+}
+
+async function presentDemoStep(step, index, pin, signal) {
+  const controller = new AbortController();
+  demoStage = controller;
+  signal.addEventListener('abort', () => controller.abort(), { once: true });
+  showDemoStep(step, index);
+  const work = Promise.resolve(step.run(controller.signal, pin));
+  await demoWait(step.duration, controller.signal);
+  controller.abort();
+  try { await work; } catch (error) { if (!controller.signal.aborted) throw error; }
+  demoStage = null;
+}
+
 async function runDemo() {
   if (demo) { demo.abort(); return; }
   const pin = scene.pinInfo(DEMO_PIN);
-  if (!pin) { ui.toast('Demo needs the replay data; it has not loaded.', 'error', 4000); return; }
+  if (!pin) { ui.toast('Guided demo needs the replay data; it has not loaded.', 'error', 4000); return; }
   demo = new AbortController();
   const { signal } = demo;
   const stop = () => demo?.abort();
   const canvas = document.getElementById('cesium');
   canvas.addEventListener('pointerdown', stop, { signal });
   canvas.addEventListener('wheel', stop, { signal });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') stop(); }, { signal });
-  const wait = (ms) => new Promise((r) => { const t = setTimeout(r, ms); signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true }); });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') stop(); }, { signal });
   demoBtn.setAttribute('aria-pressed', 'true');
+  demoBtn.innerHTML = `${ui.iconSvg('x')}Stop demo`;
+  document.body.classList.add('demo-active');
+  demoGuide.hidden = false;
   try {
+    window.scrollTo(0, 0);
     stopPlay(); select(null);
     ['left', 'right', 'timeline'].forEach((id) => ui.setCollapsed(id, true));
-    setLayer('water', true); setLayer('evidence', true);
-    const [lon, lat] = pin.feature.geometry.coordinates;
-    await scene.orbit(lon, lat, { range: 150, pitch: -22, seconds: 16, signal });
-    if (signal.aborted) return;
-    select(pin);
-    await scene.orbit(lon, lat, { range: 120, pitch: -18, seconds: 9, turns: 0.2, signal });
-    if (signal.aborted) return;
-    ui.setCollapsed('right', true); ui.setCollapsed('left', false);
-    document.getElementById('sec-route').scrollIntoView({ block: 'start', behavior: 'smooth' });
-    const doc = await Promise.race([routing.demoTrip(), wait(5 * 60e3)]);
-    if (signal.aborted || !doc || !doc.options) return;
-    await wait(2600);
-    for (const o of doc.options) { if (signal.aborted) return; routing.highlight(o.id); await wait(3800); }
+    for (let index = 0; index < DEMO_STEPS.length && !signal.aborted; index += 1) {
+      await presentDemoStep(DEMO_STEPS[index], index, pin, signal);
+    }
+  } catch (error) {
+    if (!signal.aborted) ui.toast(`Guided demo stopped: ${error.message}`, 'error', 6000);
   } finally {
-    demo.abort(); demo = null;
+    demoStage?.abort(); demo.abort(); demo = null; demoStage = null;
+    document.body.classList.remove('demo-active');
+    demoGuide.hidden = true;
     demoBtn.setAttribute('aria-pressed', 'false');
+    demoBtn.innerHTML = `${ui.iconSvg('play')}Demo`;
   }
 }
+
 demoBtn.addEventListener('click', runDemo);
+document.getElementById('demo-next').addEventListener('click', () => demoStage?.abort());
+document.getElementById('demo-stop').addEventListener('click', () => demo?.abort());
 // ---------------------------------------------------------------- observations
 function renderLists() {
   ui.renderStats(state.data);

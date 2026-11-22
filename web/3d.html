@@ -35,7 +35,7 @@
       <button type="button" data-map-mode="photorealistic" aria-pressed="false">Photorealistic</button>
     </div>
     <div class="tb-spacer"></div>
-    <button class="btn btn-ghost" type="button" id="demo-btn" aria-pressed="false" title="Guided demo: orbit, evidence, route options. Esc stops."><span data-icon="play"></span>Demo</button>
+    <button class="btn btn-ghost" type="button" id="demo-btn" aria-pressed="false" title="Play a short guided replay. Escape stops."><span data-icon="play"></span>Demo</button>
     <div class="status" id="sys-status" data-kind="loading" role="status"><span class="dot" aria-hidden="true"></span><span class="st-text">Loading data</span></div>
     <a class="tb-link" href="photos/index.html" aria-label="Open field-photo evidence" title="Field-photo evidence"><span data-icon="video"></span></a>
     <a class="tb-link" href="map.html" aria-label="Open 2D map" title="Open 2D map"><span data-icon="map"></span></a>
@@ -126,6 +126,21 @@
     </div>
 
     <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <aside class="demo-guide" id="demo-guide" aria-label="Guided demonstration" aria-live="polite" hidden>
+      <div class="demo-guide-head">
+        <span class="demo-kicker">Guided replay</span>
+        <span class="demo-count" id="demo-count">1 / 4</span>
+      </div>
+      <div class="demo-progress" aria-hidden="true"><i id="demo-progress"></i></div>
+      <h2 id="demo-title">Flood overview</h2>
+      <p id="demo-copy"></p>
+      <div class="demo-guide-actions">
+        <span class="demo-spacer"></span>
+        <button class="btn btn-ghost" type="button" id="demo-next">Next</button>
+        <button class="btn btn-ghost" type="button" id="demo-stop">End</button>
+      </div>
+    </aside>
 
     <div class="cam-ctrl" role="group" aria-label="Camera">
       <button class="icon-btn lg" type="button" id="cam-overview" aria-label="City overview" title="City overview"><span data-icon="overview"></span></button>

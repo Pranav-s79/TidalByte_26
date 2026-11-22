@@ -408,6 +408,42 @@ body.timeline-collapsed .cam-ctrl { bottom: 70px; }
 .toast-error { border-color: rgba(244, 63, 94, .45); } .toast-error .ic { color: var(--red); }
 .toast-new { border-color: rgba(34, 211, 238, .45); }
 
+/* ---------- guided replay ---------- */
+.demo-guide {
+  position: absolute; z-index: 40; left: 50%; bottom: 24px; transform: translateX(-50%);
+  width: min(410px, calc(100% - 32px)); padding: 15px 16px 14px; border-radius: 14px;
+  background: rgba(7, 14, 26, .94); border: 1px solid rgba(148, 163, 184, .22);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 18px 48px rgba(0, 0, 0, .42);
+}
+.demo-guide-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.demo-kicker { font: 650 10px/1 var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--cyan-2); }
+.demo-count { font: 600 10.5px/1 var(--mono); color: var(--text-3); }
+.demo-progress { height: 2px; margin: 10px 0 13px; overflow: hidden; border-radius: 999px; background: rgba(148, 163, 184, .16); }
+.demo-progress i { display: block; width: 25%; height: 100%; border-radius: inherit; background: var(--cyan); transition: width .35s var(--ease); }
+.demo-guide h2 { font: 650 18px/1.2 var(--font); letter-spacing: -.01em; }
+.demo-guide p { margin-top: 6px; color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
+.demo-guide-actions { display: flex; align-items: center; gap: 6px; margin-top: 13px; }
+.demo-spacer { flex: 1; }
+#demo-next { color: var(--cyan-2); border-color: rgba(34, 211, 238, .4); background: var(--cyan-dim); }
+#demo-stop { color: var(--text-3); border-color: transparent; }
+
+body.demo-active .levels,
+body.demo-active .layer-dock,
+body.demo-active .cam-ctrl,
+body.demo-active .map-gesture-hint,
+body.demo-active .panel-tab,
+body.demo-active .mode-switch,
+body.demo-active .status,
+body.demo-active .tb-link { visibility: hidden; opacity: 0; pointer-events: none; }
+body.demo-active .panel-left .rt-form,
+body.demo-active .panel-left .sec:has(#sec-detect),
+body.demo-active .panel-left .sec:has(#sec-cams),
+body.demo-active .panel-left .sec:has(#sec-obs),
+body.demo-active .panel-left .rt-caveats,
+body.demo-active .panel-left .rt-facts dt:nth-of-type(n + 3),
+body.demo-active .panel-left .rt-facts dd:nth-of-type(n + 3) { display: none; }
+body.demo-active .panel-left .rt-results { margin-top: 0; }
+
 /* ---------- water level (levels below the measured peak) ---------- */
 .levels {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--g) + 12px); z-index: 3;
@@ -524,6 +560,7 @@ li[data-state="error"] .ld-ic { border-color: var(--red); background: var(--red-
   .legend { grid-template-columns: 1fr; max-height: 55vh; overflow: auto; }
   .tl-meta { display: none; }
   .cam-ctrl { bottom: 200px; }
+  .demo-guide { top: calc(var(--top) + 64px); bottom: auto; }
 }
 @media (max-width: 760px) {
   .chip-label-secondary { display: none; }

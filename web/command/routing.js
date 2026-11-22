@@ -276,7 +276,7 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
     const doc = st.doc;
     if (!doc) return h('p', { class: 'sec-note' }, 'Options appear here and on the map. The router plans on the deeper end of every depth and never calls a road safe.');
     const out = [h('div', { class: 'rt-label' }, doc.label),
-      h('div', { class: 'rt-limit-note' }, `${st.req && st.req.vehicle ? `${st.req.vehicle} · ` : ''}Limit ${fmtM(doc.depth_limit_m)} · set by your agency`
+      h('div', { class: 'rt-limit-note' }, `${st.req && st.req.vehicle ? `${st.req.vehicle} · ` : ''}Limit ${fmtM(doc.depth_limit_m)} · ${st.req?.recorded ? 'recorded replay example' : 'set by your agency'}`
         + (doc.avoid_unobserved ? ' · avoiding unobserved roads' : '')
         + (doc.closed_osm_ids && doc.closed_osm_ids.length ? ` · ${doc.closed_osm_ids.length} hypothetical closure${doc.closed_osm_ids.length > 1 ? 's' : ''}` : ''))];
     if (st.replan) {
@@ -365,6 +365,35 @@ export function setupRouting(scene, { getClosures = () => [], onFocus = () => {}
       const results = new Promise((resolve) => { onResults = resolve; });
       if ($('#rt-limit').value) findRoutes(); else { $('#rt-limit').focus(); toast('Enter the depth limit your agency set, then press Find route options.', 'info', 6000); }
       return results;
+    },
+    // Fully autonomous showcase path: display the checked-in replay output without inventing a vehicle
+    // policy or calling the live route endpoint. The recorded 0.30 m limit remains visibly labeled as
+    // an example chosen when the replay file was generated; the demo never chooses an option.
+    demoRecorded: async () => {
+      setPicking(null);
+      const response = await fetch('data/routes.json', { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Recorded route options could not load (HTTP ${response.status})`);
+      const recorded = await response.json();
+      if (!recorded?.start || !recorded?.end || !Array.isArray(recorded.options)
+        || recorded.options.length === 0 || recorded.options.length > 3) {
+        throw new Error('Recorded route options are incomplete');
+      }
+      const start = [Number(recorded.start.lon), Number(recorded.start.lat)];
+      const end = [Number(recorded.end.lon), Number(recorded.end.lat)];
+      const options = recorded.options.map((option, index) => ({ ...option, id: option.id || String.fromCharCode(65 + index) }));
+      if (![...start, ...end].every(Number.isFinite)
+        || options.some((option) => !Array.isArray(option.geometry?.coordinates) || option.geometry.coordinates.length < 2)) {
+        throw new Error('Recorded route options are incomplete');
+      }
+      const doc = { ...recorded, options };
+      Object.assign(st, {
+        start, end, startName: doc.start.snapped_to || 'Newcastle Drive', endName: doc.end.snapped_to || 'Lymbar Drive',
+        doc, req: { start, end, depth_limit_m: doc.depth_limit_m, avoid_unobserved: Boolean(doc.avoid_unobserved),
+          vehicle: 'Replay example', recorded: true }, active: doc.options[0]?.id || null,
+        chosen: null, chosenKey: null, chosenInfo: null, replan: null,
+      });
+      render(); draw(); flyToRoutes();
+      return doc;
     },
     highlight: (id) => { st.active = id; render(); draw(); document.querySelector(`[data-focus="card-${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); },
   };
