@@ -138,43 +138,47 @@ document.getElementById('cam-north').addEventListener('click', () => scene.reset
 // visibly labeled as recorded, and leaves the final choice to the operator. Touching the map, Escape,
 // End or the Demo button again stops it.
 const DEMO_PIN = '22857';
+// Pace of the guided demo: every step, orbit and pause is stretched by this factor (1 = original timing).
+// Override live with ?pace=2 (slower) or ?pace=1 (original).
+const DEMO_PACE = Number(new URLSearchParams(window.location.search).get('pace')) || 1.5;
+const paced = (n) => n * DEMO_PACE;
 const DEMO_STEPS = [
   {
-    title: 'Flood overview', duration: 6000,
+    title: 'Flood overview', duration: paced(6000),
     copy: 'Harvey 2017 replay of estimated peak flooding across Houston.',
     run: (signal) => {
       setLayer('water', true); setLayer('roads', false); setLayer('evidence', false);
-      return scene.orbit(-95.4445, 29.6868, { range: 2500, pitch: -32, seconds: 6, turns: 0.08, signal });
+      return scene.orbit(-95.4445, 29.6868, { range: 2500, pitch: -32, seconds: paced(6), turns: 0.08, signal });
     },
   },
   {
-    title: 'Measured evidence', duration: 7000,
+    title: 'Measured evidence', duration: paced(7000),
     copy: 'Surveyed USGS high-water marks connect the estimate to field evidence.',
     run: (signal, pin) => {
       setLayer('evidence', true);
       select(pin); ui.setCollapsed('right', false);
       const [lon, lat] = pin.feature.geometry.coordinates;
-      return scene.orbit(lon, lat, { range: 145, pitch: -20, seconds: 7, turns: 0.14, signal });
+      return scene.orbit(lon, lat, { range: 145, pitch: -20, seconds: paced(7), turns: 0.14, signal });
     },
   },
   {
-    title: 'Route comparison', duration: 10000,
+    title: 'Route comparison', duration: paced(10000),
     copy: 'Compare recorded options by distance, estimated depth, and data coverage.',
     run: async (signal) => {
       select(null); setLayer('evidence', false); setLayer('roads', false);
       ui.setCollapsed('right', true); ui.setCollapsed('left', false);
       document.querySelector('#left .panel-body')?.scrollTo({ top: 0, behavior: 'smooth' });
       const doc = await routing.demoRecorded();
-      await demoWait(1800, signal);
+      await demoWait(paced(1800), signal);
       for (const option of doc.options || []) {
         if (signal.aborted) return;
         routing.highlight(option.id);
-        await demoWait(2800, signal);
+        await demoWait(paced(2800), signal);
       }
     },
   },
   {
-    title: 'Decision point', duration: 6000,
+    title: 'Decision point', duration: paced(6000),
     copy: 'The operator reviews the evidence and makes the final route decision.',
     run: () => routing.highlight('A'),
   },

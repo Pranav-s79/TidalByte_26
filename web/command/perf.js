@@ -3,24 +3,14 @@
 // While the camera moves (drag, scroll, fly-to, the guided demo orbit):
 //   - render at CSS-pixel density instead of the screen's (a quarter of the pixels on a Retina screen;
 //     no change on a 1x screen or projector),
-//   - hard instead of soft shadows,
-//   - 3D Tiles (the photorealistic city) at twice their screen-space error, so fewer, coarser tiles.
+//   - hard instead of soft shadows.
+// 3D Tiles detail is NOT lowered: coarser photorealistic tiles are less accurate in height and poke
+// through the flood surface (patchy water in the guided demo orbit), so the geometry stays as set.
 // Cesium raises camera.moveEnd once the camera has been still for 0.5 s; the saved settings then come
 // back, so the stationary look is exactly the one set in scene.js and photorealistic.js.
 //
 // URL flags: ?fps shows Cesium's frame counter (and exposes window.cesiumViewer for measuring);
 //            ?adaptive=0 turns this off, to compare against the original settings.
-
-const MOVING_SSE_FACTOR = 2;
-
-function tilesets(scene) {
-  const out = [];
-  for (let i = 0; i < scene.primitives.length; i += 1) {
-    const p = scene.primitives.get(i);
-    if (p instanceof Cesium.Cesium3DTileset) out.push(p);
-  }
-  return out;
-}
 
 export function setupAdaptiveQuality(viewer) {
   const params = new URLSearchParams(window.location.search);
@@ -39,11 +29,9 @@ export function setupAdaptiveQuality(viewer) {
     state.saved = {
       resolution: viewer.resolutionScale,
       soft: scene.shadowMap.softShadows,
-      tiles: tilesets(scene).map((t) => [t, t.maximumScreenSpaceError]),
     };
     viewer.resolutionScale = Math.min(viewer.resolutionScale, 1 / (window.devicePixelRatio || 1));
     scene.shadowMap.softShadows = false;
-    for (const [t, sse] of state.saved.tiles) t.maximumScreenSpaceError = sse * MOVING_SSE_FACTOR;
   }
 
   function restore() {
@@ -53,7 +41,6 @@ export function setupAdaptiveQuality(viewer) {
     state.saved = null;
     viewer.resolutionScale = s.resolution;
     scene.shadowMap.softShadows = s.soft;
-    for (const [t, sse] of s.tiles) if (!t.isDestroyed()) t.maximumScreenSpaceError = sse;
     scene.requestRender();
   }
 
