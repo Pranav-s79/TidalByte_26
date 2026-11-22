@@ -64,10 +64,13 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
     skyBox: false, skyAtmosphere: false, contextOptions: { webgl: { alpha: true } },
   });
   const scene = viewer.scene;
-  // Render at the display's real pixel density (capped at 2x). Cesium's default renders at CSS pixels
-  // and lets the browser upscale, which is what made the city look soft and grainy on laptop screens.
+  // Render at the display's real pixel density. Cesium's default renders at CSS pixels and lets the
+  // browser upscale, which is what made the city look soft and grainy on laptop screens. With
+  // useBrowserRecommendedResolution off, Cesium already multiplies by devicePixelRatio, so resolutionScale
+  // stays 1: setting it to devicePixelRatio as well drew 4x the screen's density per side on a Retina
+  // display (a 5760x3600 canvas in a 1440x900 window, 8-11 fps on an M4). Capped at 2x density.
   viewer.useBrowserRecommendedResolution = false;
-  viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 2);
+  viewer.resolutionScale = Math.min(1, 2 / (window.devicePixelRatio || 1));
   scene.backgroundColor = Cesium.Color.TRANSPARENT; // CSS gradient shows through as the night sky
   scene.globe.baseColor = C('#0a1220');
   scene.globe.showGroundAtmosphere = false;
@@ -747,8 +750,14 @@ export function createScene(container, creditContainer, { onTileError } = {}) {
   let hoverPos = null;
   handler.setInputAction((e) => { hoverPos = e.endPosition; }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
   let lastHoverKey = null;
+  let lastHoverPick = 0;
+  // A pick re-renders the scene under the cursor, so hover picks at most every 100 ms and never while a
+  // button is held (dragging the map moves the mouse every frame). The last position is kept, not lost.
   scene.postRender.addEventListener(() => {
-    if (!hoverPos) return;
+    if (!hoverPos || document.body.classList.contains('map-dragging')) return;
+    const now = performance.now();
+    if (now - lastHoverPick < 100) return;
+    lastHoverPick = now;
     const pos = hoverPos; hoverPos = null;
     const info = pickAt(pos, false);
     scene.canvas.style.cursor = info ? 'pointer' : '';

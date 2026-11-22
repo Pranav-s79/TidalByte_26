@@ -5,6 +5,7 @@ import { createPhotorealisticLayer } from './photorealistic.js';
 import { loadFlood3d, createWaterLevels, roadDepth } from './flood3d.js';
 import * as ui from './ui.js';
 import { setupRouting } from './routing.js';
+import { setupAdaptiveQuality } from './perf.js';
 
 const state = { data: {}, selected: null, closures: new Map(), playing: false, step: 3, timer: null };
 let photorealisticLayer = null;
@@ -28,6 +29,7 @@ const scene = createScene(document.getElementById('cesium'), document.getElement
   onTileError: () => { ui.toast('Basemap tiles are not loading. The flood layers still work.', 'error', 6000); },
 });
 window.floodScene = scene; // console debugging
+setupAdaptiveQuality(scene.viewer); // lighter while the camera moves, full quality when still (perf.js)
 scene.intro();
 const routing = setupRouting(scene, { getClosures: () => [...state.closures.keys()].map(String) });
 
